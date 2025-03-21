@@ -7,10 +7,7 @@ class ForwardingProcessor : public Processor {
 private:
     // Forwarding unit
     ForwardingUnit forwarding_unit;
-    
-    // Hazard detection
-    HazardDetectionUnit hazard_unit;
-    
+
     // Pipeline diagram specific to forwarding
     void update_pipeline_diagram() override;
     
