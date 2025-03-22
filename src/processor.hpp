@@ -24,14 +24,19 @@ protected:
     // Control signals
     ControlSignals control;
 
+
+
     // Cycle tracking
     int cycle_count = 0;
 
     // Hazard detection
     HazardDetectionUnit hazard_unit;
 
+    /*          For testing purpose                 */
     // Instruction tracking for pipeline diagram
     vector<string> instruction_strings;
+
+
     vector<string> pipeline_states;
 
     // Load instructions from file
@@ -39,7 +44,7 @@ protected:
 
     // Pipeline stage functions
     void generate_control_signals();
-    void generate_alu_ops();
+    void generate_alu_ops(ALU::Operation& operation);
     virtual void fetch();
     virtual void decode();
     virtual void execute();
