@@ -11,13 +11,20 @@ using namespace std;
 
 struct program_counter
 {
-    uint32_t instruction_address = 0;
+    uint64_t instruction_address = 0;
     bool stall = false;
+
+    void update(uint64_t nextPC){   // this function gets nextPC from PC_handler and then updates the PC based on the stall<bool>.
+        if(!stall){
+            instruction_address = nextPC;
+        }
+    }
 };
+
 struct instruction_memory
 {
     uint64_t address = 0;
-    vector<uint64_t> instructions;
+    vector<uint32_t> instructions;
     uint32_t instruction = 0;
     void fetch()
     {
@@ -34,6 +41,26 @@ struct instruction_memory
 
     // map<Address, std::string> instruction_strings;  // For displaying mnemonics
 };
+
+struct PC_handler
+{
+    uint64_t currPC = -4;
+    uint64_t branch_jump_PC = 0;
+    bool is_branch_jump = 0;
+    bool branch_taken = 0;
+
+    uint64_t handle(){
+        if(is_branch_jump && branch_taken){
+            return (branch_jump_PC + currPC);
+        }else{
+            return (currPC + 4);
+        }
+    }
+
+    PC_handler(){}
+};
+
+
 struct IF_ID_register_file
 {
     uint32_t instruction = 0;
@@ -67,18 +94,50 @@ struct ControlSignals
     ControlSignals() {}
 };
 
+// struct HazardDetectionUnit
+// {
+//     uint64_t instruction;
+//     bool stall = false;
+//     bool flush = false;
+
+//     // bool beq = false; Or maybe just extract from the instruction
+
+//     // For stalling
+//     void detect(bool id_ex_memRead, uint32_t id_ex_rd, uint32_t if_id_rs1, uint32_t if_id_rs2)
+//     {
+//         // Load-use hazard
+//         stall = id_ex_memRead && (id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2);
+//     }
+// };
+
 struct HazardDetectionUnit
 {
-    uint64_t instruction;
     bool stall = false;
     bool flush = false;
+    uint32_t instruction = 0;
+    bool is_equal = false;
 
-    // bool beq = false; Or maybe just extract from the instruction
-
-    void detect(bool id_ex_memRead, uint32_t id_ex_rd, uint32_t if_id_rs1, uint32_t if_id_rs2)
+    // For no-forwarding processor - detect all RAW hazards
+    void detect(uint8_t id_ex_rd, uint8_t ex_mem_rd, uint8_t mem_wb_rd,
+                uint8_t if_id_rs1, uint8_t if_id_rs2, bool id_ex_memRead)
     {
-        // Load-use hazard
-        stall = id_ex_memRead && (id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2);
+        // Any instruction in ID stage depends on result from previous instructions
+        bool hazard_id_ex = (id_ex_rd != 0) &&
+                            (id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2);
+
+        bool hazard_ex_mem = (ex_mem_rd != 0) &&
+                             (ex_mem_rd == if_id_rs1 || ex_mem_rd == if_id_rs2);
+
+        // Stall if any hazard is detected
+        stall = hazard_id_ex || hazard_ex_mem;
+
+        uint32_t opcode = instruction & 0x7F;
+
+        if (opcode == 0x67 and is_equal)
+        {
+            flush = true;
+            stall = false;
+        }
     }
 };
 
@@ -193,7 +252,6 @@ struct ID_EX_register_file
     // MEM control signals
     bool memRead = false;
     bool memWrite = false;
-    bool branch = false; // This will be used by the hazard detection unit, else it is not needed
 
     // EX control signals
     bool aluSrc = false;
@@ -258,11 +316,6 @@ public:
         default:
             return 0;
         }
-    }
-
-    static bool isZero(uint64_t result)
-    {
-        return result == 0;
     }
 };
 
@@ -345,6 +398,8 @@ struct data_memory
         {
             if (data_memory.find(addr) == data_memory.end())
             { // This will be a 5-bit number
+                cerr << "Invalid Memory Access in Data Memory.";
+                exit(1);
             }
             else
             {

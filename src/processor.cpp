@@ -120,7 +120,7 @@ void Processor::generate_control_signals()
         control.aluSrc = true;
         break;
 
-    case 0x67: // Branch instructions -> 1100111
+    case 0x63: // Branch instructions -> 1100111
         control.branch = true;
         control.aluOp = 1; // Branch comparison
         break;
@@ -186,12 +186,13 @@ void Processor::decode()
     ID_EX.memToReg = control.memToReg;
     ID_EX.memRead = control.memRead;
     ID_EX.memWrite = control.memWrite;
-    ID_EX.branch = control.branch;
     ID_EX.aluSrc = control.aluSrc;
     ID_EX.aluOp = control.aluOp;
 
     // Check for hazards
-    hazard_unit.detect(ID_EX.memRead, ID_EX.IF_ID_Register_RD, rs1, rs2);
+    hazard_unit.detect(ID_EX.IF_ID_Register_RD, EX_MEM.ID_EX_RegisterRD, 
+        MEM_WB.EX_MEM_RegisterRD, ID_EX.IF_ID_Register_RS1, 
+        ID_EX.IF_ID_Register_RS2, ID_EX.memRead);
 }
 
 void Processor::generate_alu_ops(ALU::Operation &operation)
@@ -230,6 +231,8 @@ void Processor::generate_alu_ops(ALU::Operation &operation)
             operation = ALU::Operation::SLL;
             break;
 
+
+
         /*      Unknown         */
         case 2:
             operation = ALU::Operation::SLT;
@@ -237,6 +240,8 @@ void Processor::generate_alu_ops(ALU::Operation &operation)
         case 3:
             operation = ALU::Operation::SLTU;
             break;
+
+            
 
         case 4:
             operation = ALU::Operation::XOR;
