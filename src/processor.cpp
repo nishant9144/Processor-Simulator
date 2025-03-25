@@ -10,7 +10,7 @@ void Processor::load_instructions(const string &filename)
     std::ifstream file(filename);
     if (!file.is_open())
     {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
+        cerr << "Error: Could not open file " << filename << endl;
         exit(1);
     }
 
@@ -61,21 +61,28 @@ void Processor::load_program(const string &filename)
 
 void Processor::fetch()
 {
-    // Yaha ek condition for if the line of instructions get over
+    // Check if we've reached the end of the instruction memory
+    if (pc.instruction_address / 4 >= instr_mem.instructions.size())
+    {
+        cout << "Processing Done" << endl;
+        IF_ID.instruction = 0; // Clear the instruction to indicate no more instructions
+        return;
+    }
 
-    if(!pc.stall)
+    if (!pc.stall)
     {
         IF_ID.instruction = instr_mem.instructions[pc.instruction_address / 4];
         IF_ID.program_counter = pc.instruction_address;
     }
-    if(IF_ID.flush)
+
+    /*          Do I need to update the instruction address here or not     */
+
+    if (IF_ID.flush)
     {
         IF_ID.instruction = 0;
         IF_ID.program_counter = 0;
     }
-
 }
-
 
 void Processor::generate_control_signals()
 {
@@ -88,39 +95,39 @@ void Processor::generate_control_signals()
 
     switch (opcode)
     {
-        case 0x33: // R-type instructions -> 0110011
-            control.regWrite = true;
-            control.aluOp = 2; // R-type ALU operations
-            break;
+    case 0x33: // R-type instructions -> 0110011
+        control.regWrite = true;
+        control.aluOp = 2; // R-type ALU operations
+        break;
 
-        case 0x13: // I-type ALU instructions -> 0010011
-            control.regWrite = true;
-            control.aluSrc = true;
-            control.aluOp = 2; // I-type ALU operations
-            break;
+    case 0x13: // I-type ALU instructions -> 0010011
+        control.regWrite = true;
+        control.aluSrc = true;
+        control.aluOp = 2; // I-type ALU operations
+        break;
 
-            // jalr is a I-type isntruction with different opcode
+        // jalr is a I-type isntruction with different opcode
 
-        case 0x03: // Load instructions -> 0000011
-            control.memRead = true;
-            control.regWrite = true;
-            control.aluSrc = true;
-            control.memToReg = true;
-            break;
+    case 0x03: // Load instructions -> 0000011
+        control.memRead = true;
+        control.regWrite = true;
+        control.aluSrc = true;
+        control.memToReg = true;
+        break;
 
-        case 0x23: // Store instructions -> 0100011
-            control.memWrite = true;
-            control.aluSrc = true;
-            break;
+    case 0x23: // Store instructions -> 0100011
+        control.memWrite = true;
+        control.aluSrc = true;
+        break;
 
-        case 0x67: // Branch instructions -> 1100111
-            control.branch = true;
-            control.aluOp = 1; // Branch comparison
-            break;
+    case 0x67: // Branch instructions -> 1100111
+        control.branch = true;
+        control.aluOp = 1; // Branch comparison
+        break;
 
-        default:
-            // Unknown opcode - NOP
-            break;
+    default:
+        // Unknown opcode - NOP
+        break;
     }
 }
 
@@ -152,13 +159,6 @@ void Processor::decode()
         // Sign extend
         if (imm & 0x800)
             imm |= 0xFFFFFFFFFFFFF000;
-    }
-    // B-type immediate
-    else if (opcode == 0x63)
-    {
-        imm = ((IF_ID.instruction >> 8) & 0xF) | ((IF_ID.instruction >> 25) & 0x3F0) |
-              ((IF_ID.instruction << 4) & 0x800) | ((IF_ID.instruction >> 19) & 0x1000);
-        // Sign extend
         if (imm & 0x1000)
             imm |= 0xFFFFFFFFFFFFE000;
     }
@@ -194,11 +194,11 @@ void Processor::decode()
     hazard_unit.detect(ID_EX.memRead, ID_EX.IF_ID_Register_RD, rs1, rs2);
 }
 
-void Processor::generate_alu_ops(ALU::Operation& operation)
+void Processor::generate_alu_ops(ALU::Operation &operation)
 {
     uint32_t funct3 = (ID_EX.instruction >> 12) & 0x7;
     uint32_t funct7 = (ID_EX.instruction >> 25) & 0x7F;
-    uint8_t aluOp   = ID_EX.aluOp;
+    uint8_t aluOp = ID_EX.aluOp;
 
     // Based on aluOp
     if (aluOp == 0)
@@ -267,8 +267,8 @@ void Processor::execute()
     int64_t operand1 = ID_EX.readData1;
     int64_t operand2 = ID_EX.aluSrc ? ID_EX.immediate : ID_EX.readData2;
 
-
     /*      Generate the operation        */
+
     // Perform ALU operation
     ALU::Operation op = ALU::Operation::ADD; // Default
     // Calculate ALU operation
@@ -282,9 +282,11 @@ void Processor::execute()
     // Forward control signals
     EX_MEM.regWrite = ID_EX.regWrite; // regWrite
     EX_MEM.memToReg = ID_EX.memToReg; // memToReg
-    EX_MEM.memRead  = ID_EX.memRead;   // memRead
+    EX_MEM.memRead = ID_EX.memRead;   // memRead
     EX_MEM.memWrite = ID_EX.memWrite; // memWrite
-    EX_MEM.branch   = ID_EX.branch;     // branch
+
+    // This might not be needed
+    // EX_MEM.branch   = ID_EX.branch;     // branch
 
     // Forward register destination
     EX_MEM.ID_EX_RegisterRD = ID_EX.IF_ID_Register_RD;
@@ -292,21 +294,20 @@ void Processor::execute()
 
 void Processor::memory_access()
 {
-    data_mem.addr   = EX_MEM.alu_result;
+    data_mem.addr = EX_MEM.alu_result;
     data_mem.w_data = EX_MEM.write_data;
 
+    data_mem.memRead = EX_MEM.memRead;
+    data_mem.memWrite = EX_MEM.memWrite;
 
     // Access memory if needed
-    if (EX_MEM.memRead)
-    {
-        data_mem.read();
-        MEM_WB.read_data = data_mem.r_data;
-    }
 
-    if (EX_MEM.memWrite)
-    { 
-        data_mem.write();
-    }
+    data_mem.read();
+    MEM_WB.read_data = data_mem.r_data;
+
+    // if (EX_MEM.memWrite)
+
+    data_mem.write();
 
     // Forward ALU result
     MEM_WB.alu_result = EX_MEM.alu_result;
@@ -322,8 +323,8 @@ void Processor::memory_access()
 void Processor::write_back()
 {
     // Write to register file if needed
-    if ((reg_file.regWrite = MEM_WB.regWrite) = true)
-    { 
+    if ((reg_file.regWrite = MEM_WB.regWrite) == true)
+    {
         int64_t write_data = MEM_WB.memToReg ? MEM_WB.read_data : MEM_WB.alu_result;
         reg_file.w_data = write_data;
         reg_file.rd = MEM_WB.EX_MEM_RegisterRD;
@@ -357,7 +358,8 @@ void Processor::update_pipeline_diagram()
     }
 
     if (EX_MEM.ID_EX_RegisterRD != 0)
-    {        reg_file.regWrite = true;
+    {
+        reg_file.regWrite = true;
 
         ss << "EX: " << EX_MEM.ID_EX_RegisterRD << " ";
     }
@@ -413,7 +415,6 @@ void Processor::print_pipeline_diagram() const
 
     std::cout << "\nTotal cycles: " << cycle_count << std::endl;
 }
-
 
 void Processor::run_simulation(int max_cycles)
 {

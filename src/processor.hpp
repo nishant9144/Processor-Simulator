@@ -24,8 +24,6 @@ protected:
     // Control signals
     ControlSignals control;
 
-
-
     // Cycle tracking
     int cycle_count = 0;
 
@@ -36,7 +34,6 @@ protected:
     // Instruction tracking for pipeline diagram
     vector<string> instruction_strings;
 
-
     vector<string> pipeline_states;
 
     // Load instructions from file
@@ -44,12 +41,14 @@ protected:
 
     // Pipeline stage functions
     void generate_control_signals();
-    void generate_alu_ops(ALU::Operation& operation);
-    virtual void fetch();
-    virtual void decode();
-    virtual void execute();
-    virtual void memory_access();
-    virtual void write_back();
+    void generate_alu_ops(ALU::Operation &operation);
+
+    // Run in reverse order
+    void fetch();
+    void decode();
+    void execute();
+    void memory_access();
+    void write_back();
 
     // Generate pipeline diagram
     virtual void update_pipeline_diagram();

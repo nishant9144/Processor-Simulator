@@ -36,7 +36,7 @@ struct instruction_memory
 };
 struct IF_ID_register_file
 {
-    uint32_t instruction     = 0;
+    uint32_t instruction = 0;
     uint64_t program_counter = 0;
 
     bool flush = false;
@@ -52,12 +52,12 @@ struct ControlSignals
     bool memToReg = false;
 
     // MEM control signals
-    bool memRead  = false;
+    bool memRead = false;
     bool memWrite = false;
-    bool branch   = false;
+    bool branch = false;
 
     // EX control signals
-    bool aluSrc   = false;
+    bool aluSrc = false;
     uint8_t aluOp = 0;
 
     // bool jump    = false;        // For j/jal instructions
@@ -72,6 +72,8 @@ struct HazardDetectionUnit
     uint64_t instruction;
     bool stall = false;
     bool flush = false;
+
+    // bool beq = false; Or maybe just extract from the instruction
 
     void detect(bool id_ex_memRead, uint32_t id_ex_rd, uint32_t if_id_rs1, uint32_t if_id_rs2)
     {
@@ -89,7 +91,7 @@ struct register_memory
     int64_t w_data = 0;
 
     // Control signals
-    bool regWrite  = false;
+    bool regWrite = false;
     bool branch_eq = false;
 
     // Register memory
@@ -123,7 +125,7 @@ struct register_memory
 struct imm_gen
 {
     uint32_t instruction = 0;
-    int64_t extended     = 0;
+    int64_t extended = 0;
 
     void generate()
     {
@@ -189,12 +191,12 @@ struct ID_EX_register_file
     bool memToReg = false;
 
     // MEM control signals
-    bool memRead  = false;
+    bool memRead = false;
     bool memWrite = false;
-    bool branch   = false;
+    bool branch = false; // This will be used by the hazard detection unit, else it is not needed
 
     // EX control signals
-    bool aluSrc   = false;
+    bool aluSrc = false;
     uint8_t aluOp = 0;
 
     int64_t readData1 = 0;
@@ -204,7 +206,7 @@ struct ID_EX_register_file
 
     uint8_t IF_ID_Register_RS1 = 0;
     uint8_t IF_ID_Register_RS2 = 0;
-    uint8_t IF_ID_Register_RD  = 0;
+    uint8_t IF_ID_Register_RD = 0;
 
     uint32_t instruction = 0;
 
@@ -309,28 +311,27 @@ struct EX_MEM_register_file
     bool memToReg = false;
 
     // MEM control signals
-    bool memRead  = false;
+    bool memRead = false;
     bool memWrite = false;
-    bool branch   = false;
+    // bool branch   = false;
 
     int64_t alu_result = 0;
     int64_t write_data = 0;
-    uint8_t ID_EX_RegisterRD = 0; 
+    uint8_t ID_EX_RegisterRD = 0;
 
     // bool zero = false;
     EX_MEM_register_file() {}
-
 };
 
 struct data_memory
 {
     // Inputs
-    uint64_t addr  = 0;
+    uint64_t addr = 0;
     int64_t w_data = 0;
 
     // Control Signals
     bool memWrite = false;
-    bool memRead  = false;
+    bool memRead = false;
 
     // Memory
     map<uint64_t, int64_t> data_memory;
@@ -343,7 +344,7 @@ struct data_memory
         if (memRead)
         {
             if (data_memory.find(addr) == data_memory.end())
-            {// This will be a 5-bit number
+            { // This will be a 5-bit number
             }
             else
             {
@@ -367,8 +368,8 @@ struct MEM_WB_register_file
     bool memToReg = false;
 
     int64_t alu_result = 0;
-    int64_t read_data  = 0;
-    uint8_t EX_MEM_RegisterRD = 0; 
+    int64_t read_data = 0;
+    uint8_t EX_MEM_RegisterRD = 0;
 
     // Constructor
     MEM_WB_register_file() {}
