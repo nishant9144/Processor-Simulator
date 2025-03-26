@@ -12,13 +12,6 @@ using namespace std;
 struct program_counter
 {
     uint64_t instruction_address = 0;
-    bool stall = false;
-
-    void update(uint64_t nextPC){   // this function gets nextPC from PC_handler and then updates the PC based on the stall<bool>.
-        if(!stall){
-            instruction_address = nextPC;
-        }
-    }
 };
 
 struct instruction_memory
@@ -44,22 +37,22 @@ struct instruction_memory
 
 struct PC_handler
 {
-    uint64_t currPC = -4;
+    int64_t currPC = -4;
     uint64_t branch_jump_PC = 0;
-    bool is_branch_jump = 0;
+    // bool is_branch_jump = 0;
     bool branch_taken = 0;
+    bool stall = false;
 
-    uint64_t handle(){
-        if(is_branch_jump && branch_taken){
-            return (branch_jump_PC + currPC);
-        }else{
-            return (currPC + 4);
+    void handle()
+    {
+        if (!stall)
+        {
+            currPC += (branch_taken) ? branch_jump_PC : 4;
         }
     }
 
-    PC_handler(){}
+    PC_handler() {}
 };
-
 
 struct IF_ID_register_file
 {
@@ -94,49 +87,79 @@ struct ControlSignals
     ControlSignals() {}
 };
 
-// struct HazardDetectionUnit
-// {
-//     uint64_t instruction;
-//     bool stall = false;
-//     bool flush = false;
+struct Forward_HazardDetectionUnit
+{
+    uint32_t instruction = 0;
+    bool stall = false;
+    bool flush = false;
+    bool is_equal = false;
+    bool branch_taken = false;
 
-//     // bool beq = false; Or maybe just extract from the instruction
+    // Enhanced detection for load-branch hazards
+    void detect(bool id_ex_memRead, uint8_t id_ex_rd, uint8_t if_id_rs1, uint8_t if_id_rs2, bool ex_mem_memRead, uint8_t ex_mem_rd)
+    {
 
-//     // For stalling
-//     void detect(bool id_ex_memRead, uint32_t id_ex_rd, uint32_t if_id_rs1, uint32_t if_id_rs2)
-//     {
-//         // Load-use hazard
-//         stall = id_ex_memRead && (id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2);
-//     }
-// };
+        uint32_t opcode = instruction & 0x7F;
+        bool is_branch = (opcode == 0x63);
+
+        stall = flush = false;
+
+        // Load-use hazard (including load-branch hazard)
+        stall = (id_ex_memRead && ((id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2) && id_ex_rd != 0)) ||
+                (is_branch && ex_mem_memRead && (id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2) && ex_mem_rd != 0);
+
+        if (stall)
+            flush = false;
+        else if (is_branch)
+        {
+            uint32_t func3 = (instruction >> 12) & 0x7;
+            if ((func3 == 0x0 && is_equal) || (func3 == 0x1 && !is_equal))
+            {
+                flush = true;
+                branch_taken = true;
+            }
+        }
+    }
+};
 
 struct HazardDetectionUnit
 {
+    uint32_t instruction = 0;
     bool stall = false;
     bool flush = false;
-    uint32_t instruction = 0;
     bool is_equal = false;
+    bool branch_taken = false;
 
     // For no-forwarding processor - detect all RAW hazards
-    void detect(uint8_t id_ex_rd, uint8_t ex_mem_rd, uint8_t mem_wb_rd,
-                uint8_t if_id_rs1, uint8_t if_id_rs2, bool id_ex_memRead)
+    void detect(uint8_t id_ex_rd, uint8_t ex_mem_rd, uint8_t if_id_rs1,
+                uint8_t if_id_rs2, bool id_ex_memRead, bool ex_mem_memRead,
+                bool id_ex_regWrite, bool ex_mem_regWrite)
     {
+
         // Any instruction in ID stage depends on result from previous instructions
-        bool hazard_id_ex = (id_ex_rd != 0) &&
+        bool hazard_id_ex = (id_ex_rd != 0) && (id_ex_regWrite || id_ex_memRead) &&
                             (id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2);
 
-        bool hazard_ex_mem = (ex_mem_rd != 0) &&
+        bool hazard_ex_mem = (ex_mem_rd != 0) && (ex_mem_regWrite || ex_mem_memRead) &&
                              (ex_mem_rd == if_id_rs1 || ex_mem_rd == if_id_rs2);
 
         // Stall if any hazard is detected
         stall = hazard_id_ex || hazard_ex_mem;
 
         uint32_t opcode = instruction & 0x7F;
+        bool is_branch = (opcode == 0x63);
+        flush = false; branch_taken = false;
 
-        if (opcode == 0x67 and is_equal)
+        if (stall)
+            flush = false;
+        else if (is_branch)
         {
-            flush = true;
-            stall = false;
+            uint32_t func3 = (instruction >> 12) & 0x7;
+            if ((func3 == 0x0 && is_equal) || (func3 == 0x1 && !is_equal))
+            {
+                flush = true;
+                branch_taken = true;
+            }
         }
     }
 };
@@ -164,7 +187,9 @@ struct register_memory
     {
         if (regWrite)
         {
-            rd = (rd & 1) + (rd & 2) * 2 + (rd & 4) * 4 + (rd & 8) * 8 + (rd & 16) * 16; // converted to a valid index
+            // Seems redundant
+            // rd = (rd & 1) + (rd & 2) * 2 + (rd & 4) * 4 + (rd & 8) * 8 + (rd & 16) * 16; // converted to a valid index
+
             if (rd != 0)
             { // x0 shouldn't be changed
                 registers[rd] = w_data;
@@ -175,8 +200,8 @@ struct register_memory
     {
         r1 = (r1 & 1) + (r1 & 2) * 2 + (r1 & 4) * 4 + (r1 & 8) * 8 + (r1 & 16) * 16;
         r2 = (r2 & 1) + (r2 & 2) * 2 + (r2 & 4) * 4 + (r2 & 8) * 8 + (r2 & 16) * 16;
-        r_data1 = registers[r1];
-        r_data2 = registers[r2];
+        r_data1 = (r1 < 32) ? registers[r1] : 0;
+        r_data2 = (r2 < 32) ? registers[r2] : 0;
         branch_eq = (r_data1 == r_data2);
     }
 };
@@ -257,8 +282,8 @@ struct ID_EX_register_file
     bool aluSrc = false;
     uint8_t aluOp = 0;
 
-    int64_t readData1 = 0;
-    int64_t readData2 = 0;
+    int64_t reg1_data = 0;
+    int64_t reg2_data = 0;
 
     int64_t immediate = 0;
 
@@ -270,6 +295,21 @@ struct ID_EX_register_file
 
     // Constructor - all members already have initializers
     ID_EX_register_file() {}
+};
+
+struct MUX_ALU
+{
+    bool alu_src = false;
+    int64_t output = 0;
+    int64_t reg2_value = 0;
+    int64_t imm = 0;
+
+    void handle()
+    {
+        output = (alu_src) ? imm : reg2_value;
+    }
+
+    MUX_ALU() {};
 };
 
 class ALU
@@ -321,40 +361,71 @@ public:
 
 struct ForwardingUnit
 {
-    enum class ForwardSource
-    {
-        NONE,
-        EX_MEM,
-        MEM_WB
-    };
+    uint8_t forwardA = 0;
+    uint8_t forwardB = 0;
 
-    ForwardSource forwardA = ForwardSource::NONE;
-    ForwardSource forwardB = ForwardSource::NONE;
+    int64_t outputA = 0;
+    int64_t outputB = 0;
+
+    int64_t wb_result = 0;
+    int64_t alu_result = 0;
+    int64_t reg1_result = 0;
+    int64_t reg2_result = 0;
 
     // Detect forwarding conditions
-    void detect(
-        bool ex_mem_regWrite, uint32_t ex_mem_rd,
-        bool mem_wb_regWrite, uint32_t mem_wb_rd,
-        uint32_t id_ex_rs1, uint32_t id_ex_rs2)
+    void detect(bool ex_mem_regWrite, uint32_t ex_mem_rd, bool mem_wb_regWrite,
+                uint32_t mem_wb_rd, uint32_t id_ex_rs1, uint32_t id_ex_rs2)
     {
         // Forward from EX/MEM
         if (ex_mem_regWrite && ex_mem_rd != 0)
         {
             if (ex_mem_rd == id_ex_rs1)
-                forwardA = ForwardSource::EX_MEM;
+                forwardA = 2;
+
             if (ex_mem_rd == id_ex_rs2)
-                forwardB = ForwardSource::EX_MEM;
+                forwardB = 2;
         }
 
         // Forward from MEM/WB
         if (mem_wb_regWrite && mem_wb_rd != 0)
         {
-            if (mem_wb_rd == id_ex_rs1 && forwardA != ForwardSource::EX_MEM)
-                forwardA = ForwardSource::MEM_WB;
-            if (mem_wb_rd == id_ex_rs2 && forwardB != ForwardSource::EX_MEM)
-                forwardB = ForwardSource::MEM_WB;
+            if (forwardA != 2 and mem_wb_rd == id_ex_rs1)
+                forwardA = 1;
+
+            if (forwardB != 2 and mem_wb_rd == id_ex_rs2)
+                forwardB = 1;
+        }
+        generate_output();
+    }
+
+    void generate_output()
+    {
+        switch (forwardA)
+        {
+            case 0:
+                outputA = reg1_result;
+                break;
+            case 1:
+                outputA = wb_result;
+                break;
+            case 2:
+                outputA = alu_result;
+        }
+
+        switch (forwardB)
+        {
+            case 0:
+                outputB = reg2_result;
+                break;
+            case 1:
+                outputB = wb_result;
+                break;
+            case 2:
+                outputB = alu_result;
         }
     }
+
+    ForwardingUnit() {}
 };
 
 struct EX_MEM_register_file
@@ -396,15 +467,15 @@ struct data_memory
     {
         if (memRead)
         {
-            if (data_memory.find(addr) == data_memory.end())
-            { // This will be a 5-bit number
-                cerr << "Invalid Memory Access in Data Memory.";
-                exit(1);
-            }
-            else
-            {
-                r_data = data_memory[addr];
-            }
+            // if (data_memory.find(addr) == data_memory.end())
+            // { // This will be a 5-bit number
+            //     cerr << "Invalid Memory Access in Data Memory.";
+            //     exit(1);
+            // }
+            // else
+            // {
+            r_data = data_memory[addr];
+            // }
         }
     }
     void write()
@@ -428,6 +499,19 @@ struct MEM_WB_register_file
 
     // Constructor
     MEM_WB_register_file() {}
+};
+
+struct MUX_WB
+{
+    bool mem_to_reg = false;
+    int64_t output = 0;
+    int64_t mem_value = 0;
+    int64_t alu_value = 0;
+
+    void handle()
+    {
+        output = (mem_to_reg) ? mem_value : alu_value;
+    }
 };
 
 #endif // DS_HPP

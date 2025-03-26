@@ -6,6 +6,9 @@
 class NoForwardingProcessor : public Processor {
 private:
     // Pipeline diagram specific to no forwarding
+
+    // Hazard detection
+    HazardDetectionUnit hazard_unit;
     void update_pipeline_diagram() override;
     
 public:

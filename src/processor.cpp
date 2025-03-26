@@ -69,22 +69,24 @@ void Processor::fetch()
         return;
     }
 
-    if (!pc.stall)
-    {
-        IF_ID.instruction = instr_mem.instructions[pc.instruction_address / 4];
-        IF_ID.program_counter = pc.instruction_address;
-    }
+    IF_ID.instruction = instr_mem.instructions[pc.instruction_address / 4];
+    IF_ID.program_counter = pc.instruction_address;
 
-    /*          Do I need to update the instruction address here or not     */
+    /*      This is not to be implemented here, it should be called before
+            the next cycle                                                  */
 
     if (IF_ID.flush)
     {
+        // Instruction address is same
         IF_ID.instruction = 0;
         IF_ID.program_counter = 0;
     }
+
+    pc_handler.handle();
+    pc.instruction_address = pc_handler.currPC;
 }
 
-void Processor::generate_control_signals()
+void Processor::generate_control_signals(bool stall)
 {
     uint32_t opcode = IF_ID.instruction & 0x7F;
     uint32_t funct3 = (IF_ID.instruction >> 12) & 0x7;
@@ -93,107 +95,161 @@ void Processor::generate_control_signals()
     // Default control signals
     control = ControlSignals();
 
-    switch (opcode)
+    if (!stall)
     {
-    case 0x33: // R-type instructions -> 0110011
-        control.regWrite = true;
-        control.aluOp = 2; // R-type ALU operations
-        break;
+        switch (opcode)
+        {
+        case 0x33: // R-type instructions -> 0110011
+            control.regWrite = true;
+            control.aluOp = 2; // R-type ALU operations
+            break;
 
-    case 0x13: // I-type ALU instructions -> 0010011
-        control.regWrite = true;
-        control.aluSrc = true;
-        control.aluOp = 2; // I-type ALU operations
-        break;
+        case 0x13: // I-type ALU instructions -> 0010011
+            control.regWrite = true;
+            control.aluSrc = true;
+            control.aluOp = 2; // I-type ALU operations
+            break;
 
-        // jalr is a I-type isntruction with different opcode
+            // jalr is a I-type isntruction with different opcode
 
-    case 0x03: // Load instructions -> 0000011
-        control.memRead = true;
-        control.regWrite = true;
-        control.aluSrc = true;
-        control.memToReg = true;
-        break;
+        case 0x03: // Load instructions -> 0000011
+            control.memRead = true;
+            control.regWrite = true;
+            control.aluSrc = true;
+            control.memToReg = true;
+            break;
 
-    case 0x23: // Store instructions -> 0100011
-        control.memWrite = true;
-        control.aluSrc = true;
-        break;
+        case 0x23: // Store instructions -> 0100011
+            control.memWrite = true;
+            control.aluSrc = true;
+            break;
 
-    case 0x63: // Branch instructions -> 1100111
-        control.branch = true;
-        control.aluOp = 1; // Branch comparison
-        break;
+        case 0x63: // Branch instructions -> 1100111
+            control.branch = true;
+            control.aluOp = 1; // Branch comparison
+            break;
 
-    default:
-        // Unknown opcode - NOP
-        break;
+        default:
+            // Unknown opcode - NOP
+            break;
+        }
     }
 }
 
-void Processor::decode()
-{
-    // Extract fields from instruction
-    uint32_t opcode = IF_ID.instruction & 0x7F;
-    uint8_t rd = reg_file.rd = (IF_ID.instruction >> 7) & 0x1F;
-    uint8_t rs1 = reg_file.r1 = (IF_ID.instruction >> 15) & 0x1F;
-    uint8_t rs2 = reg_file.r2 = (IF_ID.instruction >> 20) & 0x1F;
-    uint32_t funct3 = (IF_ID.instruction >> 12) & 0x7;
-    uint32_t funct7 = (IF_ID.instruction >> 25) & 0x7F;
+// void Processor::decode() // => Implemented for the non-forward processor
+// {
+//     // Extract fields from instruction
+//     uint32_t opcode = IF_ID.instruction & 0x7F;
+//     uint8_t rd = reg_file.rd = (IF_ID.instruction >> 7) & 0x1F;
+//     uint8_t rs1 = reg_file.r1 = (IF_ID.instruction >> 15) & 0x1F;
+//     uint8_t rs2 = reg_file.r2 = (IF_ID.instruction >> 20) & 0x1F;
+//     uint32_t funct3 = (IF_ID.instruction >> 12) & 0x7;
+//     uint32_t funct7 = (IF_ID.instruction >> 25) & 0x7F;
 
-    // Generate immediate based on instruction type
-    int64_t imm = 0;
+//     // Generate immediate based on instruction type
+//     int64_t imm = 0;
 
-    // I-type immediate
-    if (opcode == 0x13 || opcode == 0x03)
-    {
-        imm = (IF_ID.instruction >> 20) & 0xFFF;
-        // Sign extend
-        if (imm & 0x800)
-            imm |= 0xFFFFFFFFFFFFF000;
-    }
-    // S-type immediate
-    else if (opcode == 0x23)
-    {
-        imm = ((IF_ID.instruction >> 7) & 0x1F) | ((IF_ID.instruction >> 25) & 0xFE0);
-        // Sign extend
-        if (imm & 0x800)
-            imm |= 0xFFFFFFFFFFFFF000;
-        if (imm & 0x1000)
-            imm |= 0xFFFFFFFFFFFFE000;
-    }
+//     // I-type immediate
+//     if (opcode == 0x13 || opcode == 0x03)
+//     {
+//         imm = (IF_ID.instruction >> 20) & 0xFFF;
+//         // Sign extend
+//         if (imm & 0x800)
+//             imm |= 0xFFFFFFFFFFFFF000;
+//     }
+//     // S-type immediate
+//     else if (opcode == 0x23)
+//     {
+//         imm = ((IF_ID.instruction >> 7) & 0x1F) | ((IF_ID.instruction >> 25) & 0xFE0);
+//         // Sign extend
+//         if (imm & 0x800)
+//             imm |= 0xFFFFFFFFFFFFF000;
+//         if (imm & 0x1000)
+//             imm |= 0xFFFFFFFFFFFFE000;
+//     }
 
-    // Generate control signals
-    generate_control_signals();
+//     // Generate control signals
+//     generate_control_signals();
 
-    // Update ID/EX register
-    ID_EX.IF_ID_Register_RS1 = rs1;
-    ID_EX.IF_ID_Register_RS2 = rs2;
-    ID_EX.IF_ID_Register_RD = rd;
+//     // Update ID/EX register
+//     ID_EX.IF_ID_Register_RS1 = rs1;
+//     ID_EX.IF_ID_Register_RS2 = rs2;
+//     ID_EX.IF_ID_Register_RD = rd;
 
-    // Update the ID/EX register
-    reg_file.produce_read();
-    ID_EX.readData1 = reg_file.r_data1;
-    ID_EX.readData2 = reg_file.r_data2;
+//     // Update the ID/EX register
+//     reg_file.produce_read();
+//     ID_EX.readData1 = reg_file.r_data1;
+//     ID_EX.readData2 = reg_file.r_data2;
 
-    ID_EX.instruction = IF_ID.instruction;
+//     ID_EX.instruction = IF_ID.instruction;
 
-    /*  Here the immediate will be used for either the immediate addition in the ALU or the jumping                          */
-    ID_EX.immediate = imm;
+//     /*  Here the immediate will be used for either the immediate addition in the ALU or the jumping                          */
+//     ID_EX.immediate = imm;
 
-    // Update control signals
-    ID_EX.regWrite = control.regWrite;
-    ID_EX.memToReg = control.memToReg;
-    ID_EX.memRead = control.memRead;
-    ID_EX.memWrite = control.memWrite;
-    ID_EX.aluSrc = control.aluSrc;
-    ID_EX.aluOp = control.aluOp;
+//     // Update control signals
+//     ID_EX.regWrite = control.regWrite;
+//     ID_EX.memToReg = control.memToReg;
+//     ID_EX.memRead = control.memRead;
+//     ID_EX.memWrite = control.memWrite;
+//     ID_EX.aluSrc = control.aluSrc;
+//     ID_EX.aluOp = control.aluOp;
 
-    // Check for hazards
-    hazard_unit.detect(ID_EX.IF_ID_Register_RD, EX_MEM.ID_EX_RegisterRD, 
-        MEM_WB.EX_MEM_RegisterRD, ID_EX.IF_ID_Register_RS1, 
-        ID_EX.IF_ID_Register_RS2, ID_EX.memRead);
-}
+//     // In decode() function, after hazard detection
+//     hazard_unit.detect(rd, EX_MEM.ID_EX_RegisterRD,
+//                        rs1, rs2, ID_EX.memRead, EX_MEM.memRead,
+//                        ID_EX.regWrite, EX_MEM.regWrite);
+
+//     // Update PC handler based on hazard detection
+//     pc_handler.stall = hazard_unit.stall;
+
+//     // For branch handling in ID stage (for no-forwarding processor)
+//     if (opcode == 0x63 && !hazard_unit.stall)
+//     { // Branch instructions (BEQ, BNE, etc.)
+//         // Set instruction for hazard unit
+//         hazard_unit.instruction = IF_ID.instruction;
+
+//         // Check branch condition - branch resolution in ID stage
+//         bool branch_taken = false;
+//         switch (funct3)
+//         {
+//         case 0:                                        // BEQ
+//             hazard_unit.is_equal = reg_file.branch_eq; // Using the branch_eq flag we already have
+//             branch_taken = reg_file.branch_eq;
+//             break;
+//         case 1: // BNE
+//             branch_taken = !reg_file.branch_eq;
+//             break;
+//             // Add other branch types as needed
+//         }
+
+//         if (branch_taken)
+//         {
+//             // Calculate branch target (using immediate we already calculated)
+//             // For B-type instructions we need to recalculate the immediate correctly
+//             imm = 0;
+//             imm = ((int32_t)(IF_ID.instruction & 0x80000000)) >> 19;
+//             imm |= ((IF_ID.instruction & 0x7E000000) >> 20);
+//             imm |= ((IF_ID.instruction & 0x00000F00) >> 7);
+//             imm |= ((IF_ID.instruction & 0x00000080) << 4);
+//             if (imm & 0x1000)
+//                 imm |= 0xFFFFFFFFFFFFE000; // Sign extend
+
+//             // Set PC handler for branch
+//             pc_handler.is_branch_jump = true;
+//             pc_handler.branch_taken = true;
+//             pc_handler.branch_jump_PC = imm;
+
+//             // Flush the pipeline
+//             IF_ID.flush = true;
+//         }
+//         else
+//         {
+//             // Branch not taken, continue normal execution
+//             pc_handler.is_branch_jump = false;
+//             pc_handler.branch_taken = false;
+//         }
+//     }
+// }
 
 void Processor::generate_alu_ops(ALU::Operation &operation)
 {
@@ -231,17 +287,13 @@ void Processor::generate_alu_ops(ALU::Operation &operation)
             operation = ALU::Operation::SLL;
             break;
 
-
-
         /*      Unknown         */
         case 2:
             operation = ALU::Operation::SLT;
             break;
         case 3:
             operation = ALU::Operation::SLTU;
-            break;
-
-            
+            // break;
 
         case 4:
             operation = ALU::Operation::XOR;
@@ -266,36 +318,33 @@ void Processor::generate_alu_ops(ALU::Operation &operation)
     }
 }
 
-void Processor::execute()
-{
-    // Choose operands
-    int64_t operand1 = ID_EX.readData1;
-    int64_t operand2 = ID_EX.aluSrc ? ID_EX.immediate : ID_EX.readData2;
+// void Processor::execute()
+// {
+//     // Choose operands
+//     int64_t operand1 = ID_EX.readData1;
+//     int64_t operand2 = ID_EX.aluSrc ? ID_EX.immediate : ID_EX.readData2;
 
-    /*      Generate the operation        */
+//     /*      Generate the operation        */
 
-    // Perform ALU operation
-    ALU::Operation op = ALU::Operation::ADD; // Default
-    // Calculate ALU operation
-    generate_alu_ops(op);
+//     // Perform ALU operation
+//     ALU::Operation op = ALU::Operation::ADD; // Default
+//     // Calculate ALU operation
+//     generate_alu_ops(op);
 
-    EX_MEM.alu_result = ALU::compute(operand1, operand2, op);
+//     EX_MEM.alu_result = ALU::compute(operand1, operand2, op);
 
-    // Forward data for memory operations
-    EX_MEM.write_data = ID_EX.readData2;
+//     // Forward data for memory operations
+//     EX_MEM.write_data = ID_EX.readData2;
 
-    // Forward control signals
-    EX_MEM.regWrite = ID_EX.regWrite; // regWrite
-    EX_MEM.memToReg = ID_EX.memToReg; // memToReg
-    EX_MEM.memRead = ID_EX.memRead;   // memRead
-    EX_MEM.memWrite = ID_EX.memWrite; // memWrite
+//     // Forward control signals
+//     EX_MEM.regWrite = ID_EX.regWrite; // regWrite
+//     EX_MEM.memToReg = ID_EX.memToReg; // memToReg
+//     EX_MEM.memRead = ID_EX.memRead;   // memRead
+//     EX_MEM.memWrite = ID_EX.memWrite; // memWrite
 
-    // This might not be needed
-    // EX_MEM.branch   = ID_EX.branch;     // branch
-
-    // Forward register destination
-    EX_MEM.ID_EX_RegisterRD = ID_EX.IF_ID_Register_RD;
-}
+//     // Forward register destination
+//     EX_MEM.ID_EX_RegisterRD = ID_EX.IF_ID_Register_RD;
+// }
 
 void Processor::memory_access()
 {
