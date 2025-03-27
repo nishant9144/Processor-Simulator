@@ -9,9 +9,6 @@ private:
     ForwardingUnit forwarding_unit;
     Forward_HazardDetectionUnit hazard_unit;
     MUX_ALU mux_alu;
-    // MUX_WB mux_wb;
-
-    // Pipeline diagram specific to forwarding
     
 public:
     ForwardingProcessor() = default;

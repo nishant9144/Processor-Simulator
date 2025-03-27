@@ -9,7 +9,6 @@ private:
 
     // Hazard detection
     HazardDetectionUnit hazard_unit;
-    // void update_pipeline_diagram() override;
     
 public:
     NoForwardingProcessor() = default;

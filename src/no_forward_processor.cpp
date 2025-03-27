@@ -59,7 +59,7 @@ void NoForwardingProcessor::fetch()
 void NoForwardingProcessor::decode()
 {
     bool flush = hazard_unit.flush;
-    // Extract fields from instruction
+    
     uint32_t opcode = (flush ? 0 : IF_ID.instruction & 0x7F);
     uint8_t rd  = reg_file.rd = (flush ? 0 : (IF_ID.instruction >> 7) & 0x1F);
     uint8_t rs1 = reg_file.r1 = (flush ? 0 :  (IF_ID.instruction >> 15) & 0x1F);
@@ -67,16 +67,16 @@ void NoForwardingProcessor::decode()
     uint32_t funct3 = (flush ? 0 :  (IF_ID.instruction >> 12) & 0x7);
     uint32_t funct7 = (flush ? 0 :  (IF_ID.instruction >> 25) & 0x7F);
 
-    // Generate control signals
+    
     generate_control_signals(hazard_unit.stall);
 
-    // Update ID/EX register
+    
     ID_EX.IF_ID_Register_RS1 = rs1;
     ID_EX.IF_ID_Register_RS2 = rs2;
     ID_EX.IF_ID_Register_RD  = rd;
 
     bool jalrsig = (opcode == 0x67), jalsig = (opcode == 0x6F);
-    // Update the ID/EX register
+    
     reg_file.produce_read();
     if(jalrsig){
         ID_EX.tempr1_data = reg_file.r_data1;
@@ -92,13 +92,11 @@ void NoForwardingProcessor::decode()
 
     ID_EX.instruction = (flush ? 0 : IF_ID.instruction);
 
-    /*  Here the immediate will be used for either the immediate addition in the ALU or the jumping                          */
-        // Generate immediate based on instruction type
+    // generate immediate based on instruction type
     im_gen.instruction = IF_ID.instruction;
     im_gen.generate();
     ID_EX.immediate    = im_gen.extended;
 
-    // cout << "THIS IS IMMEDIATE (" << ID_EX.immediate << ")\n";
 
     // Update control signals
     ID_EX.regWrite = control.regWrite;
@@ -114,7 +112,6 @@ void NoForwardingProcessor::decode()
     }else{
         hazard_unit.is_equal    = reg_file.branch_eq;
     }
-    /*          HERE I NEED TO UPDATE THE BRANCH_JUMP_ADDRESS IN THE PC_HANDLER         */
 
     
 
@@ -131,9 +128,7 @@ void NoForwardingProcessor::execute()
     int64_t operand1 = ID_EX.reg1_data;
     int64_t operand2 = ID_EX.aluSrc ? ID_EX.immediate : ID_EX.reg2_data;
 
-    /*      Generate the operation        */
 
-    // Perform ALU operation
     ALU::Operation op = ALU::Operation::ADD; // Default
     // Calculate ALU operation
     uint64_t opcode = ID_EX.instruction & 0x7F;
@@ -146,13 +141,11 @@ void NoForwardingProcessor::execute()
     // Forward data for memory operations
     EX_MEM.write_data = ID_EX.reg2_data;
 
-    // Forward control signals
     EX_MEM.regWrite = ID_EX.regWrite; // regWrite
     EX_MEM.memToReg = ID_EX.memToReg; // memToReg
     EX_MEM.memRead = ID_EX.memRead;   // memRead
     EX_MEM.memWrite = ID_EX.memWrite; // memWrite
 
-    // Forward register destination
     EX_MEM.ID_EX_RegisterRD = ID_EX.IF_ID_Register_RD;
     EX_MEM.instr_index = ID_EX.instr_index;
 }
