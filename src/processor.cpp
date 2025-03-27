@@ -241,19 +241,19 @@ void Processor::update_pipeline_diagram()
 
     // Check and track stages for each instruction
     if (IF_ID.instr_index != SIZE_MAX)
-        instructionStages[IF_ID.instr_index].push_back("IF ");
+        instructionStages[IF_ID.instr_index].push_back(" IF  ");
     
     if (ID_EX.instruction != 0 && ID_EX.instr_index != SIZE_MAX)
-        instructionStages[ID_EX.instr_index].push_back("ID ");
+        instructionStages[ID_EX.instr_index].push_back(" ID  ");
     
     if (EX_MEM.instr_index != SIZE_MAX)
-        instructionStages[EX_MEM.instr_index].push_back("EX ");
+        instructionStages[EX_MEM.instr_index].push_back(" EX  ");
     
     if (MEM_WB.instr_index != SIZE_MAX)
-        instructionStages[MEM_WB.instr_index].push_back("MEM");
+        instructionStages[MEM_WB.instr_index].push_back(" MEM ");
     
     if (data_mem.wb_index != SIZE_MAX)
-        instructionStages[data_mem.wb_index].push_back("WB ");
+        instructionStages[data_mem.wb_index].push_back(" WB  ");
     
     // Update pipeline states
     for (size_t i = 0; i < pipeline_states.size(); i++)
@@ -275,9 +275,9 @@ void Processor::update_pipeline_diagram()
         {
             // For finished or not yet fetched instructions
             if (i < IF_ID.instr_index)
-                stage = " - ";
+                stage = "  -  ";
             else
-                stage = "   ";
+                stage = "     ";
         }
         
         // Append the field using semicolon as delimiter
@@ -288,6 +288,14 @@ void Processor::update_pipeline_diagram()
 
 void Processor::print_pipeline_diagram() const
 {
+    cout << setw(10) << "Cycle Count ";
+    for (int i = 1; i <= cycle_count; i++)
+    {
+        cout << setw(4) << i;
+        cout << " ";
+    }
+    
+
     for (const auto &state : pipeline_states)
     {
         std::cout << state << std::endl;

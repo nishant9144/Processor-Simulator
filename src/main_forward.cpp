@@ -9,7 +9,9 @@ int main(int argc, char* argv[]) {
 
         processor->load_program(argv[1]);
 
-        processor->run_simulation(20);
+        int num_cycles = atoi(argv[2]);
+
+        processor->run_simulation(num_cycles);
 
         processor->print_pipeline_diagram();
 

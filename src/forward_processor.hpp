@@ -12,7 +12,6 @@ private:
     // MUX_WB mux_wb;
 
     // Pipeline diagram specific to forwarding
-    void update_pipeline_diagram() override;
     
 public:
     ForwardingProcessor() = default;

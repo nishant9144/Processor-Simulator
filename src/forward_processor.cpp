@@ -8,6 +8,9 @@
 
 void ForwardingProcessor::fetch()
 {
+    if(hazard_unit.flush){
+        pc_handler.currPC -= 4;
+    }
     pc_handler.handle();
     pc.instruction_address = pc_handler.currPC;
     // Check if we've reached the end of the instruction memory
@@ -43,10 +46,13 @@ void ForwardingProcessor::fetch()
     IF_ID.flush = hazard_unit.flush;
     pc_handler.branch_taken = hazard_unit.branch_taken;
     pc_handler.stall = hazard_unit.stall;
-    pc_handler.branch_jump_PC = IF_ID.program_counter + ID_EX.immediate;
-
-    if (hazard_unit.flush)
-        pc_handler.branch_jump_PC -= 4;
+    if((ID_EX.instruction & 0x7F) == 0x67){
+        pc_handler.branch_jump_PC = (ID_EX.tempr1_data + ID_EX.immediate) + 4 - pc_handler.currPC;
+        pc_handler.branch_taken = true;
+        pc_handler.stall = false;
+    }else{
+        pc_handler.branch_jump_PC = (ID_EX.immediate);
+    }
 }
 
 void ForwardingProcessor::decode()
@@ -68,12 +74,21 @@ void ForwardingProcessor::decode()
     ID_EX.IF_ID_Register_RS2 = rs2;
     ID_EX.IF_ID_Register_RD = rd;
 
+    bool jalrsig = (opcode == 0x67), jalsig = (opcode == 0x6F);
     // Update the ID/EX register
     reg_file.produce_read();
-    ID_EX.reg1_data = reg_file.r_data1;
-    ID_EX.reg2_data = reg_file.r_data2;
+    if(jalrsig){
+        ID_EX.tempr1_data = reg_file.r_data1;
+    }
 
-    ID_EX.instruction = IF_ID.instruction;
+    if(opcode == 0x67 || opcode == 0x6F){
+        ID_EX.reg1_data = IF_ID.program_counter;
+        ID_EX.reg2_data = 4;
+    }else{
+        ID_EX.reg1_data = reg_file.r_data1;
+        ID_EX.reg2_data = reg_file.r_data2;
+    }
+
 
     /*  Here the immediate will be used for either the immediate addition in the ALU or the jumping                          */
     ID_EX.instruction = (flush ? 0 : IF_ID.instruction);
@@ -91,10 +106,13 @@ void ForwardingProcessor::decode()
     ID_EX.aluOp = control.aluOp;
 
     hazard_unit.instruction = IF_ID.instruction;
-    hazard_unit.is_equal = reg_file.branch_eq;
+    if(opcode == 0x67 || opcode == 0x6F){
+        hazard_unit.is_equal = false;
+    }else{
+        hazard_unit.is_equal    = reg_file.branch_eq;
+    }
 
-    if (hazard_unit.stall || flush)
-    {
+    if(hazard_unit.stall || flush){
         ID_EX.instr_index = SIZE_MAX;
     }
     else
@@ -126,7 +144,10 @@ void ForwardingProcessor::execute()
     int64_t operand2 = mux_alu.output;
 
     ALU::Operation op = ALU::Operation::ADD; // Default
-    generate_alu_ops(op);
+    uint64_t opcode = ID_EX.instruction & 0x7F;
+    if(opcode != 0x67 && opcode != 0x6F){
+        generate_alu_ops(op);
+    }
 
     // Perform ALU operation
     EX_MEM.alu_result = ALU::compute(operand1, operand2, op);
@@ -144,23 +165,3 @@ void ForwardingProcessor::execute()
     EX_MEM.ID_EX_RegisterRD = ID_EX.IF_ID_Register_RD;
     EX_MEM.instr_index = ID_EX.instr_index;
 }
-
-// void ForwardingProcessor::write_back()
-// {
-//     // Write to register file if needed
-//     reg_file.regWrite = MEM_WB.regWrite;
-
-//     mux_wb = MUX_WB();
-
-//     mux_wb.mem_to_reg = MEM_WB.memToReg;
-//     mux_wb.mem_value = MEM_WB.read_data;
-//     mux_wb.alu_value = MEM_WB.alu_result;
-
-//     mux_wb.handle();
-
-//     reg_file.w_data = mux_wb.output;
-//     reg_file.rd = MEM_WB.EX_MEM_RegisterRD;
-//     reg_file.write();
-
-//     data_mem.wb_index = MEM_WB.instr_index;
-// }

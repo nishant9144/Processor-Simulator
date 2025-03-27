@@ -52,7 +52,7 @@ protected:
     void write_back();
 
     // Generate pipeline diagram
-    virtual void update_pipeline_diagram();
+    void update_pipeline_diagram();
 
 public:
     Processor() = default;

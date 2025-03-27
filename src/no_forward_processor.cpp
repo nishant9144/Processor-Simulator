@@ -32,14 +32,6 @@ void NoForwardingProcessor::fetch()
     }
     else
     {
-        // if(IF_ID.instr_index == instr_mem.instructions.size()-1){
-        //     // IF_ID.instr_index = SIZE_MAX;
-        // }
-        // else
-        // {
-        //     if (!pc_handler.stall)
-        //         IF_ID.instr_index++;
-        // }
         if (IF_ID.instr_index != instr_mem.instructions.size() - 1 && (!pc_handler.stall))
             IF_ID.instr_index++;
     }
