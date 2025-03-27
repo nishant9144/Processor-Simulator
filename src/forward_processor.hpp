@@ -9,7 +9,7 @@ private:
     ForwardingUnit forwarding_unit;
     Forward_HazardDetectionUnit hazard_unit;
     MUX_ALU mux_alu;
-    MUX_WB mux_wb;
+    // MUX_WB mux_wb;
 
     // Pipeline diagram specific to forwarding
     void update_pipeline_diagram() override;
@@ -18,6 +18,7 @@ public:
     ForwardingProcessor() = default;
     
     // Override specific pipeline stages
+    void fetch() override;
     void decode() override;
     void execute() override;
 };

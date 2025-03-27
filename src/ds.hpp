@@ -97,7 +97,8 @@ struct Forward_HazardDetectionUnit
     bool branch_taken = false;
 
     // Enhanced detection for load-branch hazards
-    void detect(bool id_ex_memRead, uint8_t id_ex_rd, uint8_t if_id_rs1, uint8_t if_id_rs2, bool ex_mem_memRead, uint8_t ex_mem_rd)
+    void detect(uint8_t id_ex_rd, uint8_t ex_mem_rd, uint8_t if_id_rs1, 
+                uint8_t if_id_rs2, bool id_ex_memRead,  bool ex_mem_memRead)
     {
 
         uint32_t opcode = instruction & 0x7F;
@@ -524,6 +525,7 @@ struct MUX_WB
     {
         output = (mem_to_reg) ? mem_value : alu_value;
     }
+    MUX_WB() {}
 };
 
 #endif // DS_HPP

@@ -29,6 +29,7 @@ protected:
     // Cycle tracking
     int cycle_count = 0;
 
+    MUX_WB mux_wb;
 
     /*          For testing purpose                 */
     // Instruction tracking for pipeline diagram

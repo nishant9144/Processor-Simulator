@@ -6,10 +6,8 @@
 #include <bitset>
 #include "no_forward_processor.hpp"
 
-
 void NoForwardingProcessor::fetch()
 {
-
     pc_handler.handle();
     pc.instruction_address = pc_handler.currPC;
     // Check if we've reached the end of the instruction memory
@@ -25,27 +23,27 @@ void NoForwardingProcessor::fetch()
     IF_ID.instruction = instr_mem.instruction;
     IF_ID.program_counter = pc.instruction_address;
 
-
     if (IF_ID.flush)
     {
         IF_ID.instr_index = pc.instruction_address/4;
     }else{
         if(IF_ID.instr_index == instr_mem.instructions.size()-1){
             // IF_ID.instr_index = SIZE_MAX;
-        }else{
-            if(!pc_handler.stall)
+        }
+        else
+        {
+            if (!pc_handler.stall)
                 IF_ID.instr_index++;
         }
     }
-
 
     uint8_t rs1 = reg_file.r1 = (IF_ID.instruction >> 15) & 0x1F;
     uint8_t rs2 = reg_file.r2 = (IF_ID.instruction >> 20) & 0x1F;
 
     // In decode() function, after hazard detection
     hazard_unit.detect(ID_EX.IF_ID_Register_RD, EX_MEM.ID_EX_RegisterRD,
-            rs1, rs2, ID_EX.memRead, EX_MEM.memRead,
-            ID_EX.regWrite, EX_MEM.regWrite);
+                       rs1, rs2, ID_EX.memRead, EX_MEM.memRead,
+                       ID_EX.regWrite, EX_MEM.regWrite);
     IF_ID.flush = hazard_unit.flush;
     pc_handler.branch_taken = hazard_unit.branch_taken;
     pc_handler.stall = hazard_unit.stall;
@@ -97,74 +95,15 @@ void NoForwardingProcessor::decode()
 
     hazard_unit.instruction = IF_ID.instruction;
     hazard_unit.is_equal = reg_file.branch_eq;
-
-    // // In decode() function, after hazard detection
-    // hazard_unit.detect(rd, EX_MEM.ID_EX_RegisterRD,
-    //                    rs1, rs2, ID_EX.memRead, EX_MEM.memRead,
-    //                    ID_EX.regWrite, EX_MEM.regWrite);
-
-    // IF_ID.flush = hazard_unit.flush;
-
-    // pc_handler.branch_taken = hazard_unit.branch_taken;
-    // pc_handler.stall = hazard_unit.stall;
-
     /*          HERE I NEED TO UPDATE THE BRANCH_JUMP_ADDRESS IN THE PC_HANDLER         */
 
     
 
     if(hazard_unit.stall || flush){
         ID_EX.instr_index = SIZE_MAX;
-    }else
+    }
+    else
         ID_EX.instr_index = IF_ID.instr_index;
-
-    // Update PC handler based on hazard detection
-    // pc_handler.stall = hazard_unit.stall;
-
-    // // For branch handling in ID stage (for no-forwarding processor)
-    // if (opcode == 0x63 && !hazard_unit.stall)
-    // { // Branch instructions (BEQ, BNE, etc.)
-    //     // Set instruction for hazard unit
-    //     hazard_unit.instruction = IF_ID.instruction;
-
-    //     // Check branch condition - branch resolution in ID stage
-    //     bool branch_taken = false;
-    //     switch (funct3)
-    //     {
-    //     case 0:                                        // BEQ
-    //         hazard_unit.is_equal = reg_file.branch_eq; // Using the branch_eq flag we already have
-    //         branch_taken = reg_file.branch_eq;
-    //         break;
-    //     case 1: // BNE
-    //         branch_taken = !reg_file.branch_eq;
-    //         break;
-    //         // Add other branch types as needed
-    //     }
-
-    //     if (branch_taken)
-    //     {
-    //         // Calculate branch target (using immediate we already calculated)
-    //         // For B-type instructions we need to recalculate the immediate correctly
-    //         imm = 0;
-    //         imm = ((int32_t)(IF_ID.instruction & 0x80000000)) >> 19;
-    //         imm |= ((IF_ID.instruction & 0x7E000000) >> 20);
-    //         imm |= ((IF_ID.instruction & 0x00000F00) >> 7);
-    //         imm |= ((IF_ID.instruction & 0x00000080) << 4);
-    //         if (imm & 0x1000)
-    //             imm |= 0xFFFFFFFFFFFFE000; // Sign extend
-
-    //         // Set PC handler for branch
-    //         pc_handler.branch_taken = true;
-    //         pc_handler.branch_jump_PC = imm;
-
-    //         // Flush the pipeline
-    //         IF_ID.flush = true;
-    //     }
-    //     else
-    //     {
-    //         // Branch not taken, continue normal execution
-    //         pc_handler.branch_taken = false;
-    //     }
-    // }
 }
 
 void NoForwardingProcessor::execute()
