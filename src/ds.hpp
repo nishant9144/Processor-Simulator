@@ -31,7 +31,6 @@ struct instruction_memory
             instruction = instructions[address / 4];
         }
     }
-
 };
 
 struct PC_handler
@@ -80,7 +79,6 @@ struct ControlSignals
     bool aluSrc = false;
     uint8_t aluOp = 0;
 
-
     // Constructor
     ControlSignals() {}
 };
@@ -88,31 +86,45 @@ struct ControlSignals
 struct Forward_HazardDetectionUnit
 {
     uint32_t instruction = 0;
+    uint32_t if_id_ins = 0;
     bool stall = false;
     bool flush = false;
     bool is_equal = false;
     bool branch_taken = false;
 
     // Enhanced detection for load-branch hazards
-    void detect(uint8_t id_ex_rd, uint8_t ex_mem_rd, uint8_t if_id_rs1, 
-                uint8_t if_id_rs2, bool id_ex_memRead,  bool ex_mem_memRead)
+    void detect(uint8_t id_ex_rd, uint8_t ex_mem_rd, uint8_t if_id_rs1,
+                uint8_t if_id_rs2, bool id_ex_memRead, bool ex_mem_memRead,
+                bool id_ex_regWrite, bool ex_mem_regWrite, bool mem_wb_regwrite, uint8_t mem_wb_rd)
     {
 
-        uint32_t opcode = instruction & 0x7F;
+        uint32_t opcode = if_id_ins & 0x7F;
         bool is_branch = (opcode == 0x63);
 
         stall = flush = branch_taken = false;
 
         // Load-use hazard (including load-branch hazard)
-        stall = (id_ex_memRead && ((id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2) && id_ex_rd != 0)) ||
-                (is_branch && ex_mem_memRead && (id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2) && ex_mem_rd != 0);
+        stall = (id_ex_memRead && ((id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2) && id_ex_rd != 0));
+
+        bool hazard_id_ex = ((is_branch) && (id_ex_rd != 0) && (id_ex_regWrite || id_ex_memRead) &&
+                             (id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2));
+
+        bool hazard_ex_mem = ((is_branch) && (ex_mem_rd != 0) && (ex_mem_regWrite || ex_mem_memRead) &&
+                              (ex_mem_rd == if_id_rs1 || ex_mem_rd == if_id_rs2));
+
+        stall = stall || hazard_ex_mem || hazard_id_ex;
+
+        opcode = instruction & 0x7F;
+        is_branch = (opcode == 0x63);
 
         if (stall)
             flush = false;
         else if (is_branch)
         {
             uint32_t func3 = (instruction >> 12) & 0x7;
-            if ((func3 == 0x0 && is_equal) || (func3 == 0x1 && !is_equal))
+            bool hazard_mem_wb = (mem_wb_rd != 0) and (mem_wb_regwrite) and (mem_wb_rd == if_id_rs1 || mem_wb_rd == if_id_rs2);
+
+            if (((func3 == 0x0 && is_equal) || (func3 == 0x1 && !is_equal)) and !hazard_mem_wb)
             {
                 flush = true;
                 branch_taken = true;
@@ -148,7 +160,6 @@ struct HazardDetectionUnit
 
         // bool hazard_mem_wb = (mem_wb_rd != 0) and (mem_wb_regwrite) and (mem_wb_rd == if_id_rs1 || mem_wb_rd == if_id_rs2);
 
-
         stall = hazard_id_ex || hazard_ex_mem; // || hazard_mem_wb;
 
         uint32_t opcode = instruction & 0x7F;
@@ -168,12 +179,17 @@ struct HazardDetectionUnit
                 flush = true;
                 branch_taken = true;
             }
-        }else if(is_jal){
+        }
+        else if (is_jal)
+        {
             flush = true;
             branch_taken = true;
-        }else if(is_jalr){
+        }
+        else if (is_jalr)
+        {
             bool hazard_mem_wb = (mem_wb_rd != 0) and (mem_wb_regwrite) and (mem_wb_rd == if_id_rs1 || mem_wb_rd == if_id_rs2);
-            if(!hazard_mem_wb){
+            if (!hazard_mem_wb)
+            {
                 flush = true;
                 branch_taken = true;
             }
@@ -417,31 +433,31 @@ struct ForwardingUnit
         }
         generate_output();
     }
-    
+
     void generate_output()
     {
         switch (forwardA)
         {
-            case 0:
-                outputA = reg1_result;
-                break;
-            case 1:
-                outputA = wb_result;
-                break;
-            case 2:
-                outputA = alu_result;
+        case 0:
+            outputA = reg1_result;
+            break;
+        case 1:
+            outputA = wb_result;
+            break;
+        case 2:
+            outputA = alu_result;
         }
 
         switch (forwardB)
         {
-            case 0:
-                outputB = reg2_result;
-                break;
-            case 1:
-                outputB = wb_result;
-                break;
-            case 2:
-                outputB = alu_result;
+        case 0:
+            outputB = reg2_result;
+            break;
+        case 1:
+            outputB = wb_result;
+            break;
+        case 2:
+            outputB = alu_result;
         }
     }
 

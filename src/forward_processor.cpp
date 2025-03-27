@@ -39,9 +39,11 @@ void ForwardingProcessor::fetch()
     uint8_t rs1 = reg_file.r1 = (IF_ID.instruction >> 15) & 0x1F;
     uint8_t rs2 = reg_file.r2 = (IF_ID.instruction >> 20) & 0x1F;
 
+    hazard_unit.if_id_ins = IF_ID.instruction;
     // In decode() function, after hazard detection
     hazard_unit.detect(ID_EX.IF_ID_Register_RD, EX_MEM.ID_EX_RegisterRD,
-                       rs1, rs2, ID_EX.memRead, EX_MEM.memRead);
+                       rs1, rs2, ID_EX.memRead, EX_MEM.memRead,
+                       ID_EX.regWrite, EX_MEM.regWrite, MEM_WB.regWrite, MEM_WB.EX_MEM_RegisterRD);
 
     IF_ID.flush = hazard_unit.flush;
     pc_handler.branch_taken = hazard_unit.branch_taken;
