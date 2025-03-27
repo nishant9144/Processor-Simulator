@@ -8,6 +8,9 @@
 
 void NoForwardingProcessor::fetch()
 {
+    if(hazard_unit.flush){
+        pc_handler.currPC -= 4;
+    }
     pc_handler.handle();
     pc.instruction_address = pc_handler.currPC;
     // Check if we've reached the end of the instruction memory
@@ -37,7 +40,7 @@ void NoForwardingProcessor::fetch()
         //     if (!pc_handler.stall)
         //         IF_ID.instr_index++;
         // }
-        if (IF_ID.instr_index != instr_mem.instructions.size() - 1 and !pc_handler.stall)
+        if (IF_ID.instr_index != instr_mem.instructions.size() - 1 && (!pc_handler.stall))
             IF_ID.instr_index++;
     }
 
@@ -47,15 +50,17 @@ void NoForwardingProcessor::fetch()
     // In decode() function, after hazard detection
     hazard_unit.detect(ID_EX.IF_ID_Register_RD, EX_MEM.ID_EX_RegisterRD,
                        rs1, rs2, ID_EX.memRead, EX_MEM.memRead,
-                       ID_EX.regWrite, EX_MEM.regWrite);
+                       ID_EX.regWrite, EX_MEM.regWrite, MEM_WB.regWrite, MEM_WB.EX_MEM_RegisterRD);
 
     IF_ID.flush = hazard_unit.flush;
     pc_handler.branch_taken = hazard_unit.branch_taken;
     pc_handler.stall = hazard_unit.stall;
-    pc_handler.branch_jump_PC = ID_EX.immediate;
-
-    if(hazard_unit.flush){
-        pc_handler.branch_jump_PC -= 4;
+    if((ID_EX.instruction & 0x7F) == 0x67){
+        pc_handler.branch_jump_PC = (ID_EX.tempr1_data + ID_EX.immediate) + 4 - pc_handler.currPC;
+        pc_handler.branch_taken = true;
+        pc_handler.stall = false;
+    }else{
+        pc_handler.branch_jump_PC = (ID_EX.immediate);
     }
 }
 
@@ -78,10 +83,20 @@ void NoForwardingProcessor::decode()
     ID_EX.IF_ID_Register_RS2 = rs2;
     ID_EX.IF_ID_Register_RD  = rd;
 
+    bool jalrsig = (opcode == 0x67), jalsig = (opcode == 0x6F);
     // Update the ID/EX register
     reg_file.produce_read();
-    ID_EX.reg1_data = reg_file.r_data1;
-    ID_EX.reg2_data = reg_file.r_data2;
+    if(jalrsig){
+        ID_EX.tempr1_data = reg_file.r_data1;
+    }
+
+    if(opcode == 0x67 || opcode == 0x6F){
+        ID_EX.reg1_data = IF_ID.program_counter;
+        ID_EX.reg2_data = 4;
+    }else{
+        ID_EX.reg1_data = reg_file.r_data1;
+        ID_EX.reg2_data = reg_file.r_data2;
+    }
 
     ID_EX.instruction = (flush ? 0 : IF_ID.instruction);
 
@@ -90,6 +105,8 @@ void NoForwardingProcessor::decode()
     im_gen.instruction = IF_ID.instruction;
     im_gen.generate();
     ID_EX.immediate    = im_gen.extended;
+
+    // cout << "THIS IS IMMEDIATE (" << ID_EX.immediate << ")\n";
 
     // Update control signals
     ID_EX.regWrite = control.regWrite;
@@ -100,7 +117,11 @@ void NoForwardingProcessor::decode()
     ID_EX.aluOp    = control.aluOp;
 
     hazard_unit.instruction = IF_ID.instruction;
-    hazard_unit.is_equal    = reg_file.branch_eq;
+    if(opcode == 0x67 || opcode == 0x6F){
+        hazard_unit.is_equal = false;
+    }else{
+        hazard_unit.is_equal    = reg_file.branch_eq;
+    }
     /*          HERE I NEED TO UPDATE THE BRANCH_JUMP_ADDRESS IN THE PC_HANDLER         */
 
     
@@ -123,7 +144,10 @@ void NoForwardingProcessor::execute()
     // Perform ALU operation
     ALU::Operation op = ALU::Operation::ADD; // Default
     // Calculate ALU operation
-    generate_alu_ops(op);
+    uint64_t opcode = ID_EX.instruction & 0x7F;
+    if(opcode != 0x67 && opcode != 0x6F){
+        generate_alu_ops(op);
+    }
 
     EX_MEM.alu_result = ALU::compute(operand1, operand2, op);
 

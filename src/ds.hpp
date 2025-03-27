@@ -32,7 +32,6 @@ struct instruction_memory
         }
     }
 
-    // map<Address, std::string> instruction_strings;  // For displaying mnemonics
 };
 
 struct PC_handler
@@ -81,8 +80,6 @@ struct ControlSignals
     bool aluSrc = false;
     uint8_t aluOp = 0;
 
-    // bool jump    = false;        // For j/jal instructions
-    // bool jumpReg = false;        // For jalr instruction
 
     // Constructor
     ControlSignals() {}
@@ -135,7 +132,7 @@ struct HazardDetectionUnit
     // For no-forwarding processor - detect all RAW hazards
     void detect(uint8_t id_ex_rd, uint8_t ex_mem_rd, uint8_t if_id_rs1,
                 uint8_t if_id_rs2, bool id_ex_memRead, bool ex_mem_memRead,
-                bool id_ex_regWrite, bool ex_mem_regWrite)
+                bool id_ex_regWrite, bool ex_mem_regWrite, bool mem_wb_regwrite, uint8_t mem_wb_rd)
     {
 
         stall = false;
@@ -149,19 +146,34 @@ struct HazardDetectionUnit
         bool hazard_ex_mem = (ex_mem_rd != 0) && (ex_mem_regWrite || ex_mem_memRead) &&
                              (ex_mem_rd == if_id_rs1 || ex_mem_rd == if_id_rs2);
 
-        // Stall if any hazard is detected
-        stall = hazard_id_ex || hazard_ex_mem;
+        // bool hazard_mem_wb = (mem_wb_rd != 0) and (mem_wb_regwrite) and (mem_wb_rd == if_id_rs1 || mem_wb_rd == if_id_rs2);
+
+
+        stall = hazard_id_ex || hazard_ex_mem; // || hazard_mem_wb;
 
         uint32_t opcode = instruction & 0x7F;
         bool is_branch = (opcode == 0x63);
+        bool is_jal = (opcode == 0x6F);
+        bool is_jalr = (opcode == 0x67);
 
         if (stall)
             flush = false;
         else if (is_branch)
         {
             uint32_t func3 = (instruction >> 12) & 0x7;
-            if ((func3 == 0x0 && is_equal) || (func3 == 0x1 && !is_equal))
+            bool hazard_mem_wb = (mem_wb_rd != 0) and (mem_wb_regwrite) and (mem_wb_rd == if_id_rs1 || mem_wb_rd == if_id_rs2);
+
+            if (((func3 == 0x0 && is_equal) || (func3 == 0x1 && !is_equal)) and !hazard_mem_wb)
             {
+                flush = true;
+                branch_taken = true;
+            }
+        }else if(is_jal){
+            flush = true;
+            branch_taken = true;
+        }else if(is_jalr){
+            bool hazard_mem_wb = (mem_wb_rd != 0) and (mem_wb_regwrite) and (mem_wb_rd == if_id_rs1 || mem_wb_rd == if_id_rs2);
+            if(!hazard_mem_wb){
                 flush = true;
                 branch_taken = true;
             }
@@ -192,9 +204,6 @@ struct register_memory
     {
         if (regWrite)
         {
-            // Seems redundant
-            // rd = (rd & 1) + (rd & 2) * 2 + (rd & 4) * 4 + (rd & 8) * 8 + (rd & 16) * 16; // converted to a valid index
-
             if (rd != 0)
             { // x0 shouldn't be changed
                 registers[rd] = w_data;
@@ -218,13 +227,16 @@ struct imm_gen
 
     void generate()
     {
+        // Clear the extended value first
+        extended = 0;
+
         // Extract opcode
         uint32_t opcode = instruction & 0x7F;
 
         // I-type: Load, ALU immediate, JALR
         if ((opcode == 0x03) || (opcode == 0x13) || (opcode == 0x67))
         {
-            // imm[11:0] = inst[31:20]
+            // Sign extend 12-bit immediate
             int64_t imm = ((int32_t)(instruction & 0xFFF00000)) >> 20;
             extended = imm;
         }
@@ -232,7 +244,7 @@ struct imm_gen
         // S-type: Store instructions
         else if (opcode == 0x23)
         {
-            // imm[11:5] = inst[31:25], imm[4:0] = inst[11:7]
+            // Sign extend 12-bit immediate for store
             int64_t imm = ((int32_t)(instruction & 0xFE000000)) >> 20;
             imm |= ((instruction >> 7) & 0x1F);
             extended = imm;
@@ -241,7 +253,7 @@ struct imm_gen
         // B-type: Branch instructions
         else if (opcode == 0x63)
         {
-            // imm[12|10:5|4:1|11] = inst[31|30:25|11:8|7]
+            // Sign extend and shift left by 1 for branch offsets
             int64_t imm = ((int32_t)(instruction & 0x80000000)) >> 19;
             imm |= ((instruction & 0x7E000000) >> 20);
             imm |= ((instruction & 0x00000F00) >> 7);
@@ -252,7 +264,7 @@ struct imm_gen
         // U-type: LUI, AUIPC
         else if ((opcode == 0x17) || (opcode == 0x37))
         {
-            // imm[31:12] = inst[31:12]
+            // U-type immediate is already sign-extended and shifted
             int64_t imm = (int32_t)(instruction & 0xFFFFF000);
             extended = imm;
         }
@@ -260,17 +272,18 @@ struct imm_gen
         // J-type: JAL
         else if (opcode == 0x6F)
         {
-            // imm[20|10:1|11|19:12] = inst[31|30:21|20|19:12]
+            // Sign extend and shift left by 1 for jump offsets
             int64_t imm = ((int32_t)(instruction & 0x80000000)) >> 11;
             imm |= (instruction & 0x000FF000);
             imm |= ((instruction & 0x00100000) >> 9);
             imm |= ((instruction & 0x7FE00000) >> 20);
             extended = imm;
-        }else{
-            // Default case: return 0
-            extended = (int64_t)0;
         }
-        extended = (extended << 1);
+        else
+        {
+            // Default case: return 0
+            extended = 0;
+        }
     }
 };
 
@@ -290,7 +303,7 @@ struct ID_EX_register_file
 
     int64_t reg1_data = 0;
     int64_t reg2_data = 0;
-
+    int64_t tempr1_data = 0;
     int64_t immediate = 0;
 
     uint8_t IF_ID_Register_RS1 = 0;
@@ -478,15 +491,7 @@ struct data_memory
     {
         if (memRead)
         {
-            // if (data_memory.find(addr) == data_memory.end())
-            // { // This will be a 5-bit number
-            //     cerr << "Invalid Memory Access in Data Memory.";
-            //     exit(1);
-            // }
-            // else
-            // {
             r_data = data_memory[addr];
-            // }
         }
     }
     void write()
