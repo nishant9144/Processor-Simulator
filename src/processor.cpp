@@ -24,20 +24,19 @@ void Processor::load_instructions(const string &filename)
             continue;
         }
 
-        // Parse binary instruction
         std::stringstream ss(line);
         ss >> std::hex >> instruction;
 
-        // Store instruction
         instr_mem.instructions.push_back(instruction);
-
-        /*          For testing purpose                 */
-        // Store string representation for pipeline diagram
+        // Save the full assembly string (first column in diagram)
         instruction_strings.push_back(line);
+        // Initialize the corresponding pipeline diagram row with the instruction string.
+        pipeline_states.push_back(line);
     }
 
     file.close();
 }
+
 
 void Processor::load_program(const string &filename)
 {
@@ -51,7 +50,7 @@ void Processor::load_program(const string &filename)
     EX_MEM = EX_MEM_register_file();
     MEM_WB = MEM_WB_register_file();
 
-    // Clear tracking data
+    // // Clear tracking data
     instruction_strings.clear();
     pipeline_states.clear();
 
@@ -59,32 +58,51 @@ void Processor::load_program(const string &filename)
     load_instructions(filename);
 }
 
-void Processor::fetch()
-{
-    // Check if we've reached the end of the instruction memory
-    if (pc.instruction_address / 4 >= instr_mem.instructions.size())
-    {
-        cout << "Processing Done" << endl;
-        IF_ID.instruction = 0; // Clear the instruction to indicate no more instructions
-        return;
-    }
+// void Processor::fetch()
+// {
+//     // Check if we've reached the end of the instruction memory
+//     if (pc.instruction_address / 4 >= instr_mem.instructions.size())
+//     {
+//         cout << "Processing Done" << endl;
+//         IF_ID.instruction = 0; // Clear the instruction to indicate no more instructions
+//         return;
+//     }
 
-    IF_ID.instruction = instr_mem.instructions[pc.instruction_address / 4];
-    IF_ID.program_counter = pc.instruction_address;
+//     IF_ID.program_counter = pc.instruction_address;
+    
+//     instr_mem.address = pc.instruction_address;
+//     instr_mem.fetch();
+//     IF_ID.instruction = instr_mem.instruction;
 
-    /*      This is not to be implemented here, it should be called before
-            the next cycle                                                  */
+//     /*      This is not to be implemented here, it should be called before
+//             the next cycle                                                  */
 
-    if (IF_ID.flush)
-    {
-        // Instruction address is same
-        IF_ID.instruction = 0;
-        IF_ID.program_counter = 0;
-    }
+    
+//     // In decode() function, after hazard detection
+//     hazard_unit.detect(ID_EX.IF_ID_Register_RD, EX_MEM.ID_EX_RegisterRD,
+//             ID_EX.IF_ID_Register_RS1, ID_EX.IF_ID_Register_RS2, ID_EX.memRead, EX_MEM.memRead,
+//             ID_EX.regWrite, EX_MEM.regWrite);
+//     IF_ID.flush = hazard_unit.flush;
+//     pc_handler.branch_taken = hazard_unit.branch_taken;
+//     pc_handler.stall = hazard_unit.stall;
 
-    pc_handler.handle();
-    pc.instruction_address = pc_handler.currPC;
-}
+
+//     pc_handler.handle();
+//     pc.instruction_address = pc_handler.currPC;
+
+//     if (IF_ID.flush)
+//     {
+//         // Instruction address is same
+//         IF_ID.instruction = 0;
+//         IF_ID.program_counter = 0;
+//     }else{
+//         if(IF_ID.instr_index == instr_mem.instructions.size()-1){
+//             IF_ID.instr_index = SIZE_MAX;
+//         }else{
+//             IF_ID.instr_index++;
+//         }
+//     }
+// }
 
 void Processor::generate_control_signals(bool stall)
 {
@@ -372,6 +390,8 @@ void Processor::memory_access()
 
     // Forward register destination
     MEM_WB.EX_MEM_RegisterRD = EX_MEM.ID_EX_RegisterRD;
+
+    MEM_WB.instr_index = EX_MEM.instr_index;
 }
 
 void Processor::write_back()
@@ -384,64 +404,76 @@ void Processor::write_back()
         reg_file.rd = MEM_WB.EX_MEM_RegisterRD;
         reg_file.write();
     }
+    data_mem.wb_index = MEM_WB.instr_index;
 }
 
 void Processor::update_pipeline_diagram()
 {
-    std::stringstream ss;
+    // For each instruction row, we will append (using semicolon delimiter)
+    // the stage if that instruction is in that stage in the current cycle.
+    // For simplicity we assume that your pipeline registers have been modified to include
+    // an "instr_index" field that tells you which fetched instruction is currently in that stage.
+    // For example, assume:
+    //    IF_ID.instr_index, ID_EX.instr_index, EX_MEM.instr_index, MEM_WB.instr_index
+    // are set to the index in instruction_strings (and pipeline_diagram).
+    // If a pipeline register does not hold an instruction, we consider its value to be, say, SIZE_MAX.
 
-    ss << "Cycle " << cycle_count << ": ";
+    // For each fetched instruction, decide which stage (if any) it occupies this cycle.
+    // The assignment sample output shows that if an instruction has not yet entered a stage, then
+    // an empty field (or a space) is printed; if it is not in the pipeline at all (already finished)
+    // then a dash (-) is printed.
+    // Here is one way to do it:
 
-    // Track which instructions are in which pipeline stage
-    if (IF_ID.instruction != 0)
-    {
-        ss << "IF: " << IF_ID.program_counter << " ";
-    }
-    else
-    {
-        ss << "IF: - ";
-    }
+    // Create a temporary vector for the stage labels of this cycle (one per instruction).
+    vector<string> cycleStages(pipeline_states.size(), ""); // initially empty
 
-    if (ID_EX.IF_ID_Register_RD != 0)
+    // Check IF stage
+    if (IF_ID.instr_index != SIZE_MAX)
+        cycleStages[IF_ID.instr_index] = "IF ";
+    // Check ID stage
+    if (ID_EX.instruction != 0 && ID_EX.instr_index != SIZE_MAX)
+        cycleStages[ID_EX.instr_index] = "ID ";
+    // Check EX stage
+    if (EX_MEM.instr_index != SIZE_MAX)
+        cycleStages[EX_MEM.instr_index] = "EX ";
+    // Check MEM stage
+    if (MEM_WB.instr_index != SIZE_MAX)
+        cycleStages[MEM_WB.instr_index] = "MEM";
+    // For WB stage, assume that you have a flag (or WB register) that indicates which instruction is being written back.
+    // For example, let wb_index be a member that you update in write_back().
+    if (data_mem.wb_index != SIZE_MAX)
+        cycleStages[data_mem.wb_index] = "WB ";
+    
+    // Now update each row: for each instruction that has been fetched,
+    // append a semicolon and the stage label for this cycle.
+    // If the instruction was not in any stage in this cycle, we append either an empty field or a dash,
+    // following the assignment sample (we use a dash for instructions that have finished).
+    for (size_t i = 0; i < pipeline_states.size(); i++)
     {
-        ss << "ID: " << ID_EX.IF_ID_Register_RD << " ";
+        // Decide what to append:
+        // If the instruction has not been fetched yet, you may leave it unchanged.
+        // If it has been fetched but is not in any stage in this cycle, then:
+        //   – if i > current_fetch_index (i.e. not yet fetched) append an empty field;
+        //   – otherwise, if it has finished, append a dash.
+        string stage;
+        if (cycleStages[i] != "")
+        {
+            stage = cycleStages[i];
+        }
+        else
+        {
+            // For this example, if the instruction index is less than current_fetch_index,
+            // assume it has finished execution.
+            if (i < IF_ID.instr_index)
+                stage = " - ";
+            else
+                stage = "   ";
+        }
+        // Append the field using semicolon as delimiter.
+        pipeline_states[i] += ";" + stage;
     }
-    else
-    {
-        ss << "ID: - ";
-    }
-
-    if (EX_MEM.ID_EX_RegisterRD != 0)
-    {
-        reg_file.regWrite = true;
-
-        ss << "EX: " << EX_MEM.ID_EX_RegisterRD << " ";
-    }
-    else
-    {
-        ss << "EX: - ";
-    }
-
-    if (MEM_WB.EX_MEM_RegisterRD != 0)
-    {
-        ss << "MEM: " << MEM_WB.EX_MEM_RegisterRD << " ";
-    }
-    else
-    {
-        ss << "MEM: - ";
-    }
-
-    if (MEM_WB.regWrite)
-    {
-        ss << "WB: " << MEM_WB.EX_MEM_RegisterRD;
-    }
-    else
-    {
-        ss << "WB: -";
-    }
-
-    pipeline_states.push_back(ss.str());
 }
+
 
 void Processor::print_pipeline_diagram() const
 {
@@ -490,9 +522,21 @@ void Processor::run_simulation(int max_cycles)
         execute();
         decode();
         fetch();
+        
 
         // Update cycle count and pipeline diagram
         cycle_count++;
         update_pipeline_diagram();
     }
 }
+
+/*
+00a282b3 add x5 x5 x10;IF;ID;EX;MEM;WB;-;-;-;-;-;-;-;-;-;-
+00a28133 add x2 x5 x10; ;IF;IF;IF;ID;EX;MEM;WB;-;-;-;-;-;-;-
+00a281b3 add x3 x5 x10; ; ; ; ;IF;ID;EX;MEM;WB;-;-;-;-;-;-
+00a28233 add x4 x5 x10; ; ; ; ; ;IF;ID;EX;MEM;WB;-;-;-;-;-
+00a284b3 add x9 x5 x10; ; ; ; ; ; ;IF;ID;EX;MEM;WB;-;-;-;-
+00a28333 add x6 x5 x10; ; ; ; ; ; ; ;IF;ID;EX;MEM;WB;-;-;-
+00a283b3 add x7 x5 x10; ; ; ; ; ; ; ; ;IF;ID;EX;MEM;WB;-;-
+00a28433 add x8 x5 x10; ; ; ; ; ; ; ; ; ;IF;ID;EX;MEM;WB;-
+*/

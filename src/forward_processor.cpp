@@ -79,6 +79,8 @@ void ForwardingProcessor::decode()
     /*          HERE I NEED TO UPDATE THE BRANCH_JUMP_ADDRESS IN THE PC_HANDLER         */
 
     pc_handler.branch_jump_PC = IF_ID.program_counter + ID_EX.immediate;
+
+    ID_EX.instr_index = IF_ID.instr_index;
 }
 
 void ForwardingProcessor::execute()
@@ -121,4 +123,5 @@ void ForwardingProcessor::execute()
 
     // Forward register destination
     EX_MEM.ID_EX_RegisterRD = ID_EX.IF_ID_Register_RD;
+    EX_MEM.instr_index = ID_EX.instr_index;
 }

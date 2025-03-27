@@ -43,7 +43,7 @@ protected:
     void generate_alu_ops(ALU::Operation &operation);
 
     // Run in reverse order
-    void fetch();
+    virtual void fetch() = 0;
     virtual void decode() = 0;
     virtual void execute() = 0;
     void memory_access();

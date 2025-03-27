@@ -38,16 +38,16 @@ struct instruction_memory
 struct PC_handler
 {
     int64_t currPC = -4;
-    uint64_t branch_jump_PC = 0;
+    int64_t branch_jump_PC = 0;
     // bool is_branch_jump = 0;
-    bool branch_taken = 0;
+    bool branch_taken = false;
     bool stall = false;
 
     void handle()
     {
         if (!stall)
         {
-            currPC += (branch_taken) ? branch_jump_PC : 4;
+            currPC += (branch_taken ? branch_jump_PC : 4);
         }
     }
 
@@ -58,6 +58,7 @@ struct IF_ID_register_file
 {
     uint32_t instruction = 0;
     uint64_t program_counter = 0;
+    uint64_t instr_index = -1;
 
     bool flush = false;
 
@@ -292,6 +293,7 @@ struct ID_EX_register_file
     uint8_t IF_ID_Register_RD = 0;
 
     uint32_t instruction = 0;
+    uint64_t instr_index = SIZE_MAX;
 
     // Constructor - all members already have initializers
     ID_EX_register_file() {}
@@ -443,6 +445,8 @@ struct EX_MEM_register_file
     int64_t write_data = 0;
     uint8_t ID_EX_RegisterRD = 0;
 
+    uint64_t instr_index = SIZE_MAX;
+
     // bool zero = false;
     EX_MEM_register_file() {}
 };
@@ -462,6 +466,8 @@ struct data_memory
 
     // Output
     int64_t r_data = 0;
+
+    uint64_t wb_index = 0;
 
     void read()
     {
@@ -496,6 +502,8 @@ struct MEM_WB_register_file
     int64_t alu_result = 0;
     int64_t read_data = 0;
     uint8_t EX_MEM_RegisterRD = 0;
+
+    uint64_t instr_index = SIZE_MAX;
 
     // Constructor
     MEM_WB_register_file() {}

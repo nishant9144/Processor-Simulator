@@ -3,30 +3,74 @@
 #include <iostream>
 #include <string>
 
-int main(int argc, char* argv[]) {
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <instruction_file> <processor_type>\n";
-        std::cerr << "  processor_type: 0 for no forwarding, 1 for forwarding\n";
+int main() {
+    try {
+        // Create processor instance
+        NoForwardingProcessor* processor = new NoForwardingProcessor();
+
+        // Load test program
+        processor->load_program("input.txt");
+
+        // Run simulation with a reasonable max cycle limit
+        // The number of cycles should be at least the number of instructions + some extra for pipeline stages
+        processor->run_simulation(100);
+
+        // Print pipeline diagram and final state
+        processor->print_pipeline_diagram();
+
+        delete processor;
+
+    } catch (const std::exception& e) {
+        std::cerr << "Error during simulation: " << e.what() << std::endl;
         return 1;
     }
-    
-    std::string filename = argv[1];
-    int processor_type = std::stoi(argv[2]);
-    
-    Processor* processor = nullptr;
-    
-    if (processor_type == 0) {
-        processor = new NoForwardingProcessor();
-        std::cout << "Running simulation with no forwarding processor\n";
-    } else {
-        processor = new ForwardingProcessor();
-        std::cout << "Running simulation with forwarding processor\n";
-    }
-    
-    processor->load_program(filename);
-    processor->run_simulation(100); 
-    processor->print_pipeline_diagram();
-    
-    delete processor;
+
     return 0;
 }
+
+/*
+new
+
+00a282b3 add x5 x5 x10;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a28133 add x2 x5 x10;   ;IF ;IF ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a282b3 add x5 x5 x10;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a281b3 add x3 x5 x10;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - 
+00a28233 add x4 x5 x10;   ;   ;   ;   ;   ;   ;IF ;IF ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - 
+00a284b3 add x9 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - 
+00a28333 add x6 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - 
+00a283b3 add x7 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - 
+00a28433 add x8 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - 
+
+00a282b3 add x5 x5 x10;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a28133 add x2 x5 x10;   ;IF ;IF ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a282b3 add x5 x5 x10;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a281b3 add x3 x5 x10;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - 
+00a28233 add x4 x5 x10;   ;   ;   ;   ;   ;   ;IF ;IF ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - 
+00a284b3 add x9 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - 
+00a28333 add x6 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - 
+00a283b3 add x7 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - 
+00a28433 add x8 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - 
+
+00a282b3 add x5 x5 x10;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a28133 add x2 x5 x10;   ;IF ;IF ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a282b3 add x5 x5 x10;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a281b3 add x3 x5 x10;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - 
+00a28233 add x4 x5 x10;   ;   ;   ;   ;   ;   ;IF ;IF ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - 
+00a284b3 add x9 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - 
+00a28333 add x6 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - 
+00a283b3 add x7 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - 
+00a28433 add x8 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - 
+
+old
+00a282b3 add x5 x5 x10;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a28133 add x2 x5 x10;   ;IF ;IF ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a282b3 add x5 x5 x10;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - ; - 
+00a281b3 add x3 x5 x10;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - ; - ; - ; - 
+00a28233 add x4 x5 x10;   ;   ;   ;   ;   ;   ;IF ;IF ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - ; - 
+00a284b3 add x9 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - ; - 
+00a28333 add x6 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - ; - 
+00a283b3 add x7 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - ; - 
+00a28433 add x8 x5 x10;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;IF ;ID ;EX ;MEM;WB ; - 
+
+
+*/
