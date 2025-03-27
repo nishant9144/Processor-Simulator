@@ -26,15 +26,19 @@ void NoForwardingProcessor::fetch()
     if (IF_ID.flush)
     {
         IF_ID.instr_index = pc.instruction_address/4;
-    }else{
-        if(IF_ID.instr_index == instr_mem.instructions.size()-1){
-            // IF_ID.instr_index = SIZE_MAX;
-        }
-        else
-        {
-            if (!pc_handler.stall)
-                IF_ID.instr_index++;
-        }
+    }
+    else
+    {
+        // if(IF_ID.instr_index == instr_mem.instructions.size()-1){
+        //     // IF_ID.instr_index = SIZE_MAX;
+        // }
+        // else
+        // {
+        //     if (!pc_handler.stall)
+        //         IF_ID.instr_index++;
+        // }
+        if (IF_ID.instr_index != instr_mem.instructions.size() - 1 and !pc_handler.stall)
+            IF_ID.instr_index++;
     }
 
     uint8_t rs1 = reg_file.r1 = (IF_ID.instruction >> 15) & 0x1F;
@@ -44,10 +48,12 @@ void NoForwardingProcessor::fetch()
     hazard_unit.detect(ID_EX.IF_ID_Register_RD, EX_MEM.ID_EX_RegisterRD,
                        rs1, rs2, ID_EX.memRead, EX_MEM.memRead,
                        ID_EX.regWrite, EX_MEM.regWrite);
+
     IF_ID.flush = hazard_unit.flush;
     pc_handler.branch_taken = hazard_unit.branch_taken;
     pc_handler.stall = hazard_unit.stall;
     pc_handler.branch_jump_PC = ID_EX.immediate;
+
     if(hazard_unit.flush){
         pc_handler.branch_jump_PC -= 4;
     }
@@ -58,7 +64,7 @@ void NoForwardingProcessor::decode()
     bool flush = hazard_unit.flush;
     // Extract fields from instruction
     uint32_t opcode = (flush ? 0 : IF_ID.instruction & 0x7F);
-    uint8_t rd = reg_file.rd = (flush ? 0 : (IF_ID.instruction >> 7) & 0x1F);
+    uint8_t rd  = reg_file.rd = (flush ? 0 : (IF_ID.instruction >> 7) & 0x1F);
     uint8_t rs1 = reg_file.r1 = (flush ? 0 :  (IF_ID.instruction >> 15) & 0x1F);
     uint8_t rs2 = reg_file.r2 = (flush ? 0 :  (IF_ID.instruction >> 20) & 0x1F);
     uint32_t funct3 = (flush ? 0 :  (IF_ID.instruction >> 12) & 0x7);
@@ -70,7 +76,7 @@ void NoForwardingProcessor::decode()
     // Update ID/EX register
     ID_EX.IF_ID_Register_RS1 = rs1;
     ID_EX.IF_ID_Register_RS2 = rs2;
-    ID_EX.IF_ID_Register_RD = rd;
+    ID_EX.IF_ID_Register_RD  = rd;
 
     // Update the ID/EX register
     reg_file.produce_read();
@@ -83,18 +89,18 @@ void NoForwardingProcessor::decode()
         // Generate immediate based on instruction type
     im_gen.instruction = IF_ID.instruction;
     im_gen.generate();
-    ID_EX.immediate = im_gen.extended;
+    ID_EX.immediate    = im_gen.extended;
 
     // Update control signals
     ID_EX.regWrite = control.regWrite;
     ID_EX.memToReg = control.memToReg;
-    ID_EX.memRead = control.memRead;
+    ID_EX.memRead  = control.memRead;
     ID_EX.memWrite = control.memWrite;
-    ID_EX.aluSrc = control.aluSrc;
-    ID_EX.aluOp = control.aluOp;
+    ID_EX.aluSrc   = control.aluSrc;
+    ID_EX.aluOp    = control.aluOp;
 
     hazard_unit.instruction = IF_ID.instruction;
-    hazard_unit.is_equal = reg_file.branch_eq;
+    hazard_unit.is_equal    = reg_file.branch_eq;
     /*          HERE I NEED TO UPDATE THE BRANCH_JUMP_ADDRESS IN THE PC_HANDLER         */
 
     

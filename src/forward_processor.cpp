@@ -14,6 +14,7 @@ void ForwardingProcessor::fetch()
     if (pc.instruction_address / 4 >= instr_mem.instructions.size())
     {
         // cout << "Processing Done" << endl;
+        IF_ID.instr_index = SIZE_MAX;
         IF_ID.instruction = 0; // Clear the instruction to indicate no more instructions
         return;
     }
@@ -24,21 +25,12 @@ void ForwardingProcessor::fetch()
 
     if (IF_ID.flush)
     {
-        // Instruction address is same
-        IF_ID.instruction = 0;
-        IF_ID.program_counter = 0;
+        IF_ID.instr_index = pc.instruction_address / 4;
     }
     else
     {
-        if (IF_ID.instr_index == instr_mem.instructions.size() - 1)
-        {
-            // IF_ID.instr_index = SIZE_MAX;
-        }
-        else
-        {
-            if (!pc_handler.stall)
-                IF_ID.instr_index++;
-        }
+        if (IF_ID.instr_index != instr_mem.instructions.size() - 1 and !pc_handler.stall)
+            IF_ID.instr_index++;
     }
 
     uint8_t rs1 = reg_file.r1 = (IF_ID.instruction >> 15) & 0x1F;
@@ -52,42 +44,24 @@ void ForwardingProcessor::fetch()
     pc_handler.branch_taken = hazard_unit.branch_taken;
     pc_handler.stall = hazard_unit.stall;
     pc_handler.branch_jump_PC = IF_ID.program_counter + ID_EX.immediate;
+
+    if (hazard_unit.flush)
+        pc_handler.branch_jump_PC -= 4;
 }
 
 void ForwardingProcessor::decode()
 {
+    bool flush = hazard_unit.flush;
     // Extract fields from instruction
-    uint32_t opcode = IF_ID.instruction & 0x7F;
-    uint8_t rd = reg_file.rd = (IF_ID.instruction >> 7) & 0x1F;
-    uint8_t rs1 = reg_file.r1 = (IF_ID.instruction >> 15) & 0x1F;
-    uint8_t rs2 = reg_file.r2 = (IF_ID.instruction >> 20) & 0x1F;
-    uint32_t funct3 = (IF_ID.instruction >> 12) & 0x7;
-    uint32_t funct7 = (IF_ID.instruction >> 25) & 0x7F;
+    uint32_t opcode = (flush ? 0 : IF_ID.instruction & 0x7F);
+    uint8_t rd = reg_file.rd = (flush ? 0 : (IF_ID.instruction >> 7) & 0x1F);
+    uint8_t rs1 = reg_file.r1 = (flush ? 0 : (IF_ID.instruction >> 15) & 0x1F);
+    uint8_t rs2 = reg_file.r2 = (flush ? 0 : (IF_ID.instruction >> 20) & 0x1F);
+    uint32_t funct3 = (flush ? 0 : (IF_ID.instruction >> 12) & 0x7);
+    uint32_t funct7 = (flush ? 0 : (IF_ID.instruction >> 25) & 0x7F);
 
-    // Generate immediate based on instruction type
-    int64_t imm = 0;
-
-    // I-type immediate
-    if (opcode == 0x13 || opcode == 0x03)
-    {
-        imm = (IF_ID.instruction >> 20) & 0xFFF;
-        // Sign extend
-        if (imm & 0x800)
-            imm |= 0xFFFFFFFFFFFFF000;
-    }
-    // S-type immediate
-    else if (opcode == 0x23)
-    {
-        imm = ((IF_ID.instruction >> 7) & 0x1F) | ((IF_ID.instruction >> 25) & 0xFE0);
-        // Sign extend
-        if (imm & 0x800)
-            imm |= 0xFFFFFFFFFFFFF000;
-        if (imm & 0x1000)
-            imm |= 0xFFFFFFFFFFFFE000;
-    }
-    bool stall = hazard_unit.stall;
     // Generate control signals
-    generate_control_signals(stall);
+    generate_control_signals(hazard_unit.stall);
 
     // Update ID/EX register
     ID_EX.IF_ID_Register_RS1 = rs1;
@@ -102,7 +76,11 @@ void ForwardingProcessor::decode()
     ID_EX.instruction = IF_ID.instruction;
 
     /*  Here the immediate will be used for either the immediate addition in the ALU or the jumping                          */
-    ID_EX.immediate = imm;
+    ID_EX.instruction = (flush ? 0 : IF_ID.instruction);
+
+    im_gen.instruction = IF_ID.instruction;
+    im_gen.generate();
+    ID_EX.immediate = im_gen.extended;
 
     // Update control signals
     ID_EX.regWrite = control.regWrite;
@@ -115,7 +93,7 @@ void ForwardingProcessor::decode()
     hazard_unit.instruction = IF_ID.instruction;
     hazard_unit.is_equal = reg_file.branch_eq;
 
-    if (hazard_unit.stall)
+    if (hazard_unit.stall || flush)
     {
         ID_EX.instr_index = SIZE_MAX;
     }
@@ -179,10 +157,10 @@ void ForwardingProcessor::execute()
 //     mux_wb.alu_value = MEM_WB.alu_result;
 
 //     mux_wb.handle();
-    
+
 //     reg_file.w_data = mux_wb.output;
 //     reg_file.rd = MEM_WB.EX_MEM_RegisterRD;
 //     reg_file.write();
-    
+
 //     data_mem.wb_index = MEM_WB.instr_index;
 // }

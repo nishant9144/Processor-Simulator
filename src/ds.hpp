@@ -104,7 +104,7 @@ struct Forward_HazardDetectionUnit
         uint32_t opcode = instruction & 0x7F;
         bool is_branch = (opcode == 0x63);
 
-        stall = flush = false;
+        stall = flush = branch_taken = false;
 
         // Load-use hazard (including load-branch hazard)
         stall = (id_ex_memRead && ((id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2) && id_ex_rd != 0)) ||
@@ -404,7 +404,7 @@ struct ForwardingUnit
         }
         generate_output();
     }
-
+    
     void generate_output()
     {
         switch (forwardA)

@@ -19,7 +19,7 @@ void Processor::load_instructions(const string &filename)
     while (std::getline(file, line))
     {
         // Skip empty lines and comments
-        if (line.empty() || line[0] == '#' || line[0] == '/')
+        if (line.empty() || line[0] == '#' || line[0] == '//')
         {
             continue;
         }
@@ -150,7 +150,7 @@ void Processor::generate_alu_ops(ALU::Operation &operation)
             break;
         case 3:
             operation = ALU::Operation::SLTU;
-            // break;
+            break;
 
         case 4:
             operation = ALU::Operation::XOR;
