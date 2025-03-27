@@ -508,10 +508,8 @@ void Processor::run_simulation(int max_cycles)
     {
         // Exit if we've processed all instructions and the pipeline is empty
         if (pc.instruction_address >= instr_mem.instructions.size() &&
-            IF_ID.instruction == 0 &&
-            ID_EX.IF_ID_Register_RD == 0 &&
-            EX_MEM.ID_EX_RegisterRD == 0 &&
-            MEM_WB.EX_MEM_RegisterRD == 0)
+            IF_ID.instr_index == SIZE_MAX && ID_EX.instr_index == SIZE_MAX && 
+            EX_MEM.instr_index == SIZE_MAX && MEM_WB.instr_index == SIZE_MAX)
         {
             break;
         }

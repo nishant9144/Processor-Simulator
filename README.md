@@ -12,3 +12,7 @@ So i can use the original branch_taken signal for the uncond branches and nothin
 unconditional branches -> jal, jr, jalr ( these will flush the IF/ID pipeline )
 
 how does the flush work? However that works, i have confused it with stall and implemented flush as stall, so i will not change the implementation now.
+
+
+What comes first? stall or flush?
+what am i doing rn? i was making the control signals and the following instruction 

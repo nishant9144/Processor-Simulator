@@ -16,6 +16,7 @@ void NoForwardingProcessor::fetch()
     if (pc.instruction_address / 4 >= instr_mem.instructions.size())
     {
         // cout << "Processing Done" << endl;
+        IF_ID.instr_index = SIZE_MAX;
         IF_ID.instruction = 0; // Clear the instruction to indicate no more instructions
         return;
     }
@@ -27,9 +28,7 @@ void NoForwardingProcessor::fetch()
 
     if (IF_ID.flush)
     {
-        // Instruction address is same
-        IF_ID.instruction = 0;
-        IF_ID.program_counter = 0;
+        IF_ID.instr_index = pc.instruction_address/4;
     }else{
         if(IF_ID.instr_index == instr_mem.instructions.size()-1){
             // IF_ID.instr_index = SIZE_MAX;
@@ -50,44 +49,25 @@ void NoForwardingProcessor::fetch()
     IF_ID.flush = hazard_unit.flush;
     pc_handler.branch_taken = hazard_unit.branch_taken;
     pc_handler.stall = hazard_unit.stall;
-
+    pc_handler.branch_jump_PC = ID_EX.immediate;
+    if(hazard_unit.flush){
+        pc_handler.branch_jump_PC -= 4;
+    }
 }
 
 void NoForwardingProcessor::decode()
 {
-    bool stall = hazard_unit.stall;
+    bool flush = hazard_unit.flush;
     // Extract fields from instruction
-    uint32_t opcode = (stall ? 0 : IF_ID.instruction & 0x7F);
-    uint8_t rd = reg_file.rd = (stall ? 0 : (IF_ID.instruction >> 7) & 0x1F);
-    uint8_t rs1 = reg_file.r1 = (stall ? 0 :  (IF_ID.instruction >> 15) & 0x1F);
-    uint8_t rs2 = reg_file.r2 = (stall ? 0 :  (IF_ID.instruction >> 20) & 0x1F);
-    uint32_t funct3 = (stall ? 0 :  (IF_ID.instruction >> 12) & 0x7);
-    uint32_t funct7 = (stall ? 0 :  (IF_ID.instruction >> 25) & 0x7F);
-
-    // Generate immediate based on instruction type
-    int64_t imm = 0;
-
-    // I-type immediate
-    if (opcode == 0x13 || opcode == 0x03)
-    {
-        imm = (IF_ID.instruction >> 20) & 0xFFF;
-        // Sign extend
-        if (imm & 0x800)
-            imm |= 0xFFFFFFFFFFFFF000;
-    }
-    // S-type immediate
-    else if (opcode == 0x23)
-    {
-        imm = ((IF_ID.instruction >> 7) & 0x1F) | ((IF_ID.instruction >> 25) & 0xFE0);
-        // Sign extend
-        if (imm & 0x800)
-            imm |= 0xFFFFFFFFFFFFF000;
-        if (imm & 0x1000)
-            imm |= 0xFFFFFFFFFFFFE000;
-    }
+    uint32_t opcode = (flush ? 0 : IF_ID.instruction & 0x7F);
+    uint8_t rd = reg_file.rd = (flush ? 0 : (IF_ID.instruction >> 7) & 0x1F);
+    uint8_t rs1 = reg_file.r1 = (flush ? 0 :  (IF_ID.instruction >> 15) & 0x1F);
+    uint8_t rs2 = reg_file.r2 = (flush ? 0 :  (IF_ID.instruction >> 20) & 0x1F);
+    uint32_t funct3 = (flush ? 0 :  (IF_ID.instruction >> 12) & 0x7);
+    uint32_t funct7 = (flush ? 0 :  (IF_ID.instruction >> 25) & 0x7F);
 
     // Generate control signals
-    generate_control_signals(stall);
+    generate_control_signals(hazard_unit.stall);
 
     // Update ID/EX register
     ID_EX.IF_ID_Register_RS1 = rs1;
@@ -99,10 +79,13 @@ void NoForwardingProcessor::decode()
     ID_EX.reg1_data = reg_file.r_data1;
     ID_EX.reg2_data = reg_file.r_data2;
 
-    ID_EX.instruction = (stall ? 0 : IF_ID.instruction);
+    ID_EX.instruction = (flush ? 0 : IF_ID.instruction);
 
     /*  Here the immediate will be used for either the immediate addition in the ALU or the jumping                          */
-    ID_EX.immediate = imm;
+        // Generate immediate based on instruction type
+    im_gen.instruction = IF_ID.instruction;
+    im_gen.generate();
+    ID_EX.immediate = im_gen.extended;
 
     // Update control signals
     ID_EX.regWrite = control.regWrite;
@@ -127,9 +110,9 @@ void NoForwardingProcessor::decode()
 
     /*          HERE I NEED TO UPDATE THE BRANCH_JUMP_ADDRESS IN THE PC_HANDLER         */
 
-    pc_handler.branch_jump_PC = ID_EX.immediate;
+    
 
-    if(hazard_unit.stall){
+    if(hazard_unit.stall || flush){
         ID_EX.instr_index = SIZE_MAX;
     }else
         ID_EX.instr_index = IF_ID.instr_index;

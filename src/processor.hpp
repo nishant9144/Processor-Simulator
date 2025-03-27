@@ -14,6 +14,7 @@ protected:
     register_memory reg_file;
     data_memory data_mem;
     program_counter pc;
+    imm_gen im_gen;
 
     // Pipeline registers
     IF_ID_register_file IF_ID;

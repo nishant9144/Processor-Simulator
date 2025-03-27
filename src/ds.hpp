@@ -137,6 +137,10 @@ struct HazardDetectionUnit
                 bool id_ex_regWrite, bool ex_mem_regWrite)
     {
 
+        stall = false;
+        flush = false;
+        branch_taken = false;
+
         // Any instruction in ID stage depends on result from previous instructions
         bool hazard_id_ex = (id_ex_rd != 0) && (id_ex_regWrite || id_ex_memRead) &&
                             (id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2);
@@ -149,7 +153,6 @@ struct HazardDetectionUnit
 
         uint32_t opcode = instruction & 0x7F;
         bool is_branch = (opcode == 0x63);
-        flush = false; branch_taken = false;
 
         if (stall)
             flush = false;
@@ -262,10 +265,11 @@ struct imm_gen
             imm |= ((instruction & 0x00100000) >> 9);
             imm |= ((instruction & 0x7FE00000) >> 20);
             extended = imm;
+        }else{
+            // Default case: return 0
+            extended = (int64_t)0;
         }
-
-        // Default case: return 0
-        extended = (int64_t)instruction;
+        extended = (extended << 1);
     }
 };
 
