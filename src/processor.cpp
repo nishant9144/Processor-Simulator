@@ -19,7 +19,7 @@ void Processor::load_instructions(const string &filename)
     while (std::getline(file, line))
     {
         // Skip empty lines and comments
-        if (line.empty() || line[0] == '#' || line[0] == '//')
+        if (line.empty() || line[0] == '#')
         {
             continue;
         }
@@ -288,14 +288,6 @@ void Processor::update_pipeline_diagram()
 
 void Processor::print_pipeline_diagram() const
 {
-    cout << setw(10) << "Cycle Count ";
-    for (int i = 1; i <= cycle_count; i++)
-    {
-        cout << setw(4) << i;
-        cout << " ";
-    }
-    
-
     for (const auto &state : pipeline_states)
     {
         std::cout << state << std::endl;

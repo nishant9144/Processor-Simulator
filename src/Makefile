@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -g
+CXXFLAGS = -std=c++17 -g
 
 # Common source files
 COMMON_SRCS = processor.cpp
@@ -16,6 +16,7 @@ FORWARD_EXEC = forward
 
 # Default target
 all: $(NOFORWARD_EXEC) $(FORWARD_EXEC)
+	@rm -f $(NOFORWARD_OBJS) $(FORWARD_OBJS)
 
 # Linking for no-forwarding processor
 $(NOFORWARD_EXEC): $(NOFORWARD_OBJS)

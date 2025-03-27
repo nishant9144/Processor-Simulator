@@ -1,23 +1,16 @@
-// TEST FILE FOR FORWARDING PROCESSOR HAZARDS
-
-// 1. EX-EX Forwarding (RAW hazard resolvable by forwarding)
 00500293    addi x5, x0, 5    
 00a282b3    add x5, x5, x10   
 
-// 2. MEM-EX Forwarding (RAW hazard with 1 instruction gap)
 00500313    addi x6, x0, 5    
 00100393    addi x7, x0, 1    
 00630433    add x8, x6, x6    
 
-// 3. Load-Use Hazard (still requires a stall even with forwarding)
 00a32383    lw x7, 10(x6)     
 00738433    add x8, x7, x7    
 
-// 4. Branch with Data Hazard
 00140413    addi x8, x8, 1    
 00141463    bne x8, x1, 8     
 
-// 5. Multiple forwarding paths in sequence
 00500293    addi x5, x0, 5    
 00a282b3    add x5, x5, x10   
 00a282b3    add x5, x5, x10   
