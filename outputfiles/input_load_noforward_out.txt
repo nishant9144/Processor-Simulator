@@ -1,0 +1,6 @@
+00032e03    lw x28 0    x6; IF  ; ID  ; EX  ; MEM ; WB  ;  -  ;  -  ;  -  ;  -  ;  -  ;  -  ;  -  
+001e0e13    addi x28 x28 1;     ; IF  ; IF  ; IF  ; ID  ; EX  ; MEM ; WB  ;  -  ;  -  ;  -  ;  -  
+00032e03    lw x28 0    x6;     ;     ;     ;     ; IF  ; ID  ; EX  ; MEM ; WB  ;  -  ;  -  ;  -  
+001e0e13    addi x28 x28 1;     ;     ;     ;     ;     ; IF  ; IF  ; IF  ; ID  ; EX  ; MEM ; WB  
+
+Total cycles: 12
